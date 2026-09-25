@@ -552,6 +552,10 @@ function requestBlock(sync) {
     reply_tokens: Number(bar.reply_tokens) || 1024,
     magic: bar.magic === true,
     magic_bboxes: bar.magic_bboxes === true,
+    // The pill's shape: what a magic caption places its elements on where the
+    // model named none (`chat.still_aspect`). Unsent, every caption was laid
+    // out on the image families' default whatever the pill said.
+    aspect: bar.aspect || "",
     ...sync.families(),
   };
 }
@@ -2242,7 +2246,7 @@ class Room {
     if (state.busy || !message.action) return;
     message.bad = false;
     if (message.said !== undefined) message.say = message.said;
-    await this.queueRender(message.action, message);
+    await this.queueRender(message.action, message, { again: true, shape: message.shape });
     notify();
   }
 
@@ -2260,12 +2264,30 @@ class Room {
    * `{problem}` is the assistant's line verbatim — a duration off the frame
    * grid, a checkpoint nobody picked — and is a bubble rather than an error: the model asked for something the
    * machine cannot do, which is a thing to say back, not a failure of the room.
+   *
+   * `over.again` is a render asked for again — Retake, Try again. A still's
+   * action carries the image model the turn stamped on it, and the pills may
+   * have moved since, so it is stamped again for the rail as it is now
+   * (`routes/chat._stamp`) before the base is built for it. A clip needs
+   * nothing: its base reads the video family off the rail here.
+   *
+   * The shape follows the pill the same way, but only where the pill moved:
+   * `over.shape` is the rail's aspect when the replayed take was made. An
+   * "aspect" the model wrote because it was asked for portrait stays on a
+   * retake under an unmoved pill; a moved pill is the newer word, so the
+   * action's aspect goes, and with it a caption laid out on the old shape.
    */
   async queueRender(action, message, over = {}) {
     const bar = railFor(this.sync);
     const kind = action.kind === "still" ? "still" : "video";
+    if (over.shape !== undefined && over.shape !== bar.aspect) {
+      const { caption: _laidOut, ...rest } = action;
+      action = { ...rest, aspect: null };
+    }
     message.action = action;
-    const card = { action, state: "starting", progress: 0, home: home(), turn: state.turn };
+    message.shape = bar.aspect;
+    const card = { action, state: "starting", progress: 0, home: home(), turn: state.turn,
+                   shape: bar.aspect };
     message.card = card;
     notify();
 
@@ -2277,10 +2299,22 @@ class Room {
       message.say = [message.said, line].filter(Boolean).join("\n\n");
       message.bad = true;
     };
+    let answer;
+    if (over.again && kind === "still") {
+      try {
+        answer = await run("/continuity/chat/again", {
+          action, ledger: state.ledger, strip: stripSummary(), piece: state.piece,
+          settings: requestBlock(this.sync),
+        });
+      } catch (error) {
+        return said(String(error.message || error));
+      }
+      action = answer.action;
+      message.action = card.action = action;
+    }
     const base = renderBase(this.sync, kind, action.arch);
     base.widgets.seed = over.seed ?? (Number(bar.seed) || 0);
     card.seed = base.widgets.seed;
-    let answer;
     try {
       answer = await run("/continuity/chat/render", {
         action, ledger: state.ledger, strip: state.strip, rail: bar, base,
@@ -2308,7 +2342,9 @@ class Room {
     state.turn += 1;
     state.messages.push(message);
     notify();
-    await this.queueRender(card.action, message, { seed: Math.floor(Math.random() * 0xffffffff) });
+    await this.queueRender(card.action, message,
+                           { again: true, shape: card.shape,
+                             seed: Math.floor(Math.random() * 0xffffffff) });
     notify();
   }
 

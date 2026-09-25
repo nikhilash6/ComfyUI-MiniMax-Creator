@@ -1,10 +1,12 @@
-"""`/continuity/chat/*`: the two doors the chat room knocks on.
+"""`/continuity/chat/*`: the doors the chat room knocks on.
 
 The room is a conversation and a queue, and those are the two things the server
 has to hold up. `chat/turn` asks the refiner model what to do about one user
 message and answers `{say, action?, raw}`. `chat/render` takes the action it
 answered with, turns it into a blob, compiles that blob as a dry run, and puts a
-one-node prompt on ComfyUI's queue. Everything between them lives in the
+one-node prompt on ComfyUI's queue. `chat/again` is the small third: an action
+a card already rendered, stamped again for the rail as it is now, so a retake
+follows the pills (`_stamp`). Everything between them lives in the
 browser: the conversation, the ledger of what has been made, the rail. This
 module is stateless on purpose — the spec's §5.5 — so a reload starts fresh and
 nothing here has a session to lose.
@@ -697,19 +699,7 @@ def _run(body):
     on_strip = [c["handle"] for c in strip]
     names = [m["name"] for m in cast]
 
-    # Whether the pre-stage's switch loads the Turbo checkpoint — read off its
-    # blob by the room and sent as one flag, since the card only needs to know
-    # which files a still would load.
-    known = machine(rail["still_family"], rail["video_family"],
-                    settings.load().get("weights") or {},
-                    turbo=bool(block.get("still_turbo_checkpoint")),
-                    edit=rail.get("edit_family"))
-    card = known["card"]
-    # What `still_arch_for` reads: the still family's answer about pictures,
-    # and the arch a picture it cannot read goes to.
-    rail = {**rail, "still_pictures": known["still_pictures"],
-            "edit_family": known["edit_family"],
-            "edit_arch": _arch_of(known["edit_family"]) if known["edit_family"] else None}
+    rail, card = _stamp_rail(block)
     # The rail's verbosity dial rides in the same block as the skill: both are
     # about how the model writes, and `chat.system_prompt` places them.
     edits = chat.changes_pictures(rail)
@@ -737,24 +727,94 @@ def _run(body):
     if quoted:
         out["reask"] = quoted
     if verdict["act"] == chat.ACT_RENDER:
-        action = verdict["action"]
-        if action["kind"] == chat.KIND_STILL:
-            # Which image arch draws it, decided here and not in the room:
-            # the rail's, or its edit arch for a picture the rail's family
-            # cannot read. The room builds the base for this arch
-            # (`chat.js renderBase`) and `chat/render` reads the family off
-            # that base, so the decision is made once and carried, never
-            # re-derived on the way to the queue.
-            action = {**action, "arch": chat.still_arch_for(action, ledger, rail, cast)}
-            # The room's magic switch: the family's own instruction writes the
-            # caption the render reads, carried on the action so the render
-            # and every retake of it read the same one (`chat.still_piece`).
-            if block.get("magic"):
-                caption = _magic(block, action, ledger, rail, cast)
-                if caption:
-                    action = {**action, "caption": caption}
-        out["action"] = action
+        out["action"] = _stamp(block, verdict["action"], ledger, rail, cast)
     return out
+
+
+def _stamp_rail(block):
+    """The rail an action is stamped against, and the machine card. -> `(rail, card)`.
+
+    Whether the pre-stage's switch loads the Turbo checkpoint is read off its
+    blob by the room and sent as one flag, since the card only needs to know
+    which files a still would load. The rail comes back carrying what
+    `still_arch_for` reads: the still family's answer about pictures, and the
+    arch a picture it cannot read goes to.
+    """
+    rail = _rail(block)
+    known = machine(rail["still_family"], rail["video_family"],
+                    settings.load().get("weights") or {},
+                    turbo=bool(block.get("still_turbo_checkpoint")),
+                    edit=rail.get("edit_family"))
+    rail = {**rail, "still_pictures": known["still_pictures"],
+            "edit_family": known["edit_family"],
+            "edit_arch": _arch_of(known["edit_family"]) if known["edit_family"] else None}
+    return rail, known["card"]
+
+
+def _owes_caption(block, action, held):
+    """Whether stamping `action` means writing a caption — a second generation.
+
+    Only with the magic switch on, only on a family that has a magic prompt,
+    and not when `held` (the action as it was last stamped) already carries a
+    caption written for this same arch: a retake reads the caption its first
+    take read, so "another one" is the same picture asked for again.
+    """
+    if not block.get("magic") or _magic_module(action.get("arch")) is None:
+        return False
+    return not (held.get("arch") == action.get("arch") and held.get("caption"))
+
+
+def _stamp(block, action, ledger, rail, cast, held=None):
+    """The harness's half of a render action, over the model's.
+
+    Which image arch draws a still — the rail's, or its edit arch for a
+    picture the rail's family cannot read — and the caption the family's magic
+    prompt writes for it. Decided here and not in the room: the room builds
+    the base for this arch (`chat.js renderBase`) and `chat/render` reads the
+    family off that base, so the decision is carried to the queue, not
+    re-derived on the way.
+
+    Carried, but not frozen. The model chose *what* to render; which weights
+    draw it is the rail's, and the rail can change between a turn and its
+    retake — a still made on Krea, the pill moved to Qwen, Retake pressed.
+    So `chat/again` stamps the same action again against the rail as it is
+    now, and `held` is the action as it was last stamped, whose caption is
+    kept where the arch did not move (`_owes_caption`). A caption on an arch
+    that no longer reads one is dropped rather than refused at the render.
+    """
+    if action["kind"] != chat.KIND_STILL:
+        return action
+    held = held or {}
+    action = {key: value for key, value in action.items() if key != "caption"}
+    action["arch"] = chat.still_arch_for(action, ledger, rail, cast)
+    if not block.get("magic") or _magic_module(action["arch"]) is None:
+        return action
+    caption = (held["caption"] if not _owes_caption(block, action, held)
+               else _magic(block, action, ledger, rail, cast))
+    return {**action, "caption": caption} if caption else action
+
+
+def _again(body, write=True):
+    """A render action stamped again against the rail as sent. -> the action.
+
+    `write=False` stamps without the model and answers None where a caption
+    would have to be written, so the route can do the cheap part inline and
+    send only a turn that needs a generation to the backend.
+    """
+    block = body.get("settings") or {}
+    held = body.get("action") if isinstance(body.get("action"), dict) else {}
+    strip = [c for c in body.get("strip") or [] if isinstance(c, dict) and c.get("handle")]
+    ledger, cast = _with_piece(body)
+    action = chat.validate(held, ledger, strip=[c["handle"] for c in strip],
+                           cast=[m["name"] for m in cast])
+    if action["act"] != chat.ACT_RENDER:
+        raise chat.ActionError("that action says nothing to render")
+    rail, _card = _stamp_rail(block)
+    if not write and action["kind"] == chat.KIND_STILL:
+        arch = chat.still_arch_for(action, ledger, rail, cast)
+        if _owes_caption(block, {**action, "arch": arch}, held):
+            return None
+    return _stamp(block, action, ledger, rail, cast, held)
 
 
 def _run_job(body):
@@ -771,6 +831,17 @@ def _run_job(body):
 
 
 jobs.register("chat", _run_job)
+
+
+def _again_job(body):
+    """`_again` with a caption to write, on the queue — `_run_job`'s terms."""
+    try:
+        return {"action": _again(body)}
+    except (refine.RefineError, chat.ActionError) as problem:
+        raise jobs.JobError(str(problem)) from problem
+
+
+jobs.register("chat_again", _again_job)
 
 
 @PromptServer.instance.routes.post("/continuity/chat/turn")
@@ -816,6 +887,49 @@ async def chat_turn(request):
 
     try:
         prompt_id = await jobs.submit("chat", body, body.get("client_id"))
+    except jobs.JobError as problem:
+        return web.json_response({"error": str(problem)}, status=500)
+    return web.json_response({"prompt_id": prompt_id})
+
+
+@PromptServer.instance.routes.post("/continuity/chat/again")
+@same_origin
+async def chat_again(request):
+    """An action a card already rendered, stamped for the rail as it is now.
+
+    -> `{"result": {action}}`, or a `prompt_id` whose `executed` carries the
+    same. What Retake and Try again ask before they queue: see `_stamp`. Most
+    of the time nothing has to be generated and the answer is inline, off the
+    loop for the disk reads; only a caption the magic prompt must write goes
+    to the backend, remote inside the request and local on the queue, as a
+    turn does.
+    """
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "the request body was not JSON"}, status=400)
+
+    loop = asyncio.get_running_loop()
+    block = body.get("settings") or {}
+    remote = block.get("backend") == "remote"
+    try:
+        action = await loop.run_in_executor(None, _again, body, False)
+        if action is None:
+            refused = _no_model(block)
+            if refused is not None:
+                return refused
+            if remote:
+                action = await loop.run_in_executor(None, _again, body)
+    except (refine.RefineError, chat.ActionError) as problem:
+        return web.json_response({"error": str(problem)}, status=400)
+    except Exception as problem:  # noqa: BLE001
+        return web.json_response({"error": f"{type(problem).__name__}: {problem}"},
+                                 status=500)
+    if action is not None:
+        return web.json_response({"result": {"action": action}})
+
+    try:
+        prompt_id = await jobs.submit("chat_again", body, body.get("client_id"))
     except jobs.JobError as problem:
         return web.json_response({"error": str(problem)}, status=500)
     return web.json_response({"prompt_id": prompt_id})
