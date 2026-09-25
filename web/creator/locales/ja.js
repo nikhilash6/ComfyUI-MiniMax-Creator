@@ -2850,4 +2850,10 @@ export const ja = {
  "Render stopped. Nothing was written.": "レンダーを止めました。何も保存していません。",
  "Render photo": "写真をレンダー",
  "{done} of {of} samples. Press to stop.": "{of} サンプル中 {done}。押すと止まります。",
+ "Seed": "シード",
+ "Every reply comes out differently. Click to fix it.": "返答は毎回変わります。クリックで固定。",
+ "The same message gets the same reply. Click to vary it again.": "同じメッセージには同じ返答になります。クリックで再び変化させます。",
+ "Fixed, asking again gives the same answer and the same magic caption; new every time, each ask is a fresh roll. Shared with the Refiner. What a render samples on is another number, the room's own die.": "固定すると、もう一度尋ねても同じ答えと同じマジックキャプションになります。毎回新規なら、尋ねるたびに新しく振り直します。リファイナーと共有。レンダーのサンプリングに使う数値は別で、ルーム自身のサイコロです。",
+ "this server takes none": "このサーバーは受け付けません",
+ "Claude's API has no seed, so every reply is a fresh roll whatever is set here.": "Claude の API にはシードがないため、ここで何を設定しても返答は毎回新しくなります。",
 };

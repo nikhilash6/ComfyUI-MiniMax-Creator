@@ -2851,4 +2851,10 @@ export const ko = {
  "Render stopped. Nothing was written.": "렌더를 멈췄습니다. 아무것도 저장하지 않았습니다.",
  "Render photo": "사진 렌더",
  "{done} of {of} samples. Press to stop.": "샘플 {of}개 중 {done}개. 누르면 멈춥니다.",
+ "Seed": "시드",
+ "Every reply comes out differently. Click to fix it.": "답변이 매번 달라집니다. 클릭하면 고정합니다.",
+ "The same message gets the same reply. Click to vary it again.": "같은 메시지에는 같은 답변이 나옵니다. 클릭하면 다시 달라집니다.",
+ "Fixed, asking again gives the same answer and the same magic caption; new every time, each ask is a fresh roll. Shared with the Refiner. What a render samples on is another number, the room's own die.": "고정하면 다시 물어도 같은 답과 같은 매직 캡션이 나옵니다. 매번 새로면 물을 때마다 새로 굴립니다. 리파이너와 공유합니다. 렌더가 샘플링하는 숫자는 따로 있으며, 룸 자체의 주사위입니다.",
+ "this server takes none": "이 서버는 받지 않습니다",
+ "Claude's API has no seed, so every reply is a fresh roll whatever is set here.": "Claude API에는 시드가 없어서, 여기서 무엇을 설정하든 답변은 매번 새로 나옵니다.",
 };

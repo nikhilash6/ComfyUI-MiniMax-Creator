@@ -27,7 +27,7 @@
 import { el, icon, placeNear, dismissable } from "./dom.js";
 import { openChoicePopover, stepperPill } from "./pills.js";
 import { settings as refinerSettings, saveSettings as saveRefiner, chosenModel,
-         listModels, drawRemoteCard } from "./refine.js";
+         listModels, drawRemoteCard, remoteStatus, seedControl, takesSeed } from "./refine.js";
 import { rememberedWeights } from "./models.js";
 import { neuralSwitch } from "./neural.js";
 import { FAMILIES } from "./manifest.js";
@@ -190,7 +190,7 @@ export function openThinker(anchor, { rail, setRail, skills, onChange }) {
                   + "is a fuller block of prompting. A skill you append still wins."));
   }
 
-  /** The room's own two, and the one dial of the thinker's that a chat
+  /** The room's own two, and the two dials of the thinker's that a chat
    *  turn reads. Redrawn whole on every change — nothing here holds a
    *  caret except the slider, which is rebuilt at its saved value. */
   function drawWrites() {
@@ -216,6 +216,15 @@ export function openThinker(anchor, { rail, setRail, skills, onChange }) {
         onChange: (next) => { saveRefiner({ temperature: next }); changed(); },
       }), t("The model's temperature. Lower keeps closer to your wording; higher "
             + "invents more around it. Cold keeps a small model on task.")),
+      takesSeed(current)
+        ? line(t("Seed"), seedControl(changed, {
+          random: t("Every reply comes out differently. Click to fix it."),
+          fixed: t("The same message gets the same reply. Click to vary it again."),
+        }), t("Fixed, asking again gives the same answer and the same magic caption; "
+              + "new every time, each ask is a fresh roll. Shared with the Refiner. "
+              + "What a render samples on is another number, the room's own die."))
+        : line(t("Seed"), el("span", { class: "mmc-refine-hint", text: t("this server takes none") }),
+               t("Claude's API has no seed, so every reply is a fresh roll whatever is set here.")),
       line(t("Reply length"), stepperPill({
         value: Number(bar.reply_tokens) || 1024, ...REPLY_TOKENS, width: "62px",
         format: (n) => t("{n} tokens", { n }),
@@ -273,5 +282,8 @@ export function openThinker(anchor, { rail, setRail, skills, onChange }) {
   drawNote();
   drawModels();
   drawWrites();
+  // Whether the server takes a seed is its URL's to say, and that is a fetch
+  // the first time round; drawn again once it is known.
+  if (refinerSettings().backend === "remote") remoteStatus().then(() => drawWrites());
   return pop;
 }

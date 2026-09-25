@@ -230,6 +230,54 @@ export const PROVIDERS = [
   ["Gemini", "https://generativelanguage.googleapis.com/v1beta/openai"],
 ];
 
+/** Servers that take no seed. Claude's API has no such parameter, so its
+ *  OpenAI-compatible door drops one silently: a fixed seed would read as
+ *  fixed and change nothing. A server that refuses the word outright is
+ *  `refine_remote.adapt`'s to shed, and needs no entry. */
+const SEEDLESS = ["api.anthropic.com"];
+
+/** Whether the seed means anything on the backend `current` points at. The
+ *  in-process one always takes it; a server by its host, as `remoteStatus`
+ *  last read it — before that is known, it is assumed to. */
+export function takesSeed(current = settings()) {
+  if (current.backend !== "remote" || !remoteCache?.url) return true;
+  try {
+    return !SEEDLESS.includes(new URL(remoteCache.url).hostname);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The seed as a pill: the die fixes a new number, the number itself toggles
+ * between that and "new every time" (-1). One setting, read by the Refiner
+ * and the chat's *Thinks with* alike, so the pill is drawn by one function;
+ * `titles` is what the number's tooltip says in each state, in the words of
+ * whatever the seed is steering.
+ */
+export function seedControl(changed, titles) {
+  const random = settings().seed < 0;
+  return el("div", { class: "mmc-pill mmc-pill-group" }, [
+    el("button", {
+      class: "mmc-step mmc-seed-dice",
+      title: random ? t("Fix the seed at a number") : t("Roll a new seed now"),
+      onclick: () => {
+        saveSettings({ seed: Math.floor(Math.random() * 0x7fffffff) });
+        changed();
+      },
+    }, [icon("dice", 15)]),
+    el("button", {
+      class: "mmc-ghost mmc-refine-seed",
+      text: random ? t("new every time") : String(settings().seed),
+      title: random ? titles.random : titles.fixed,
+      onclick: () => {
+        saveSettings({ seed: random ? Math.floor(Math.random() * 0x7fffffff) : -1 });
+        changed();
+      },
+    }),
+  ]);
+}
+
 let modelCache = { at: 0, names: [] };
 
 /** The text encoders on disk. Empty means the folder is bare — which the
@@ -727,7 +775,6 @@ export function openSettings(anchor, onChange, family = DEFAULT_VIDEO_FAMILY) {
       onclick: () => { saveSettings({ language: name }); changed(); },
     });
 
-    const random = current.seed < 0;
     // A labelled column per dial, side by side: three controls do not need
     // three paragraph-bearing rows. What the paragraphs said rides on each
     // pill's own title.
@@ -755,27 +802,12 @@ export function openSettings(anchor, onChange, family = DEFAULT_VIDEO_FAMILY) {
           format: (n) => n.toFixed(2),
           onChange: (next) => { saveSettings({ temperature: next }); changed(); },
         })),
-        dial(t("seed"), el("div", { class: "mmc-pill mmc-pill-group" }, [
-          el("button", {
-            class: "mmc-step mmc-seed-dice",
-            title: random ? t("Fix the seed at a number") : t("Roll a new seed now"),
-            onclick: () => {
-              saveSettings({ seed: Math.floor(Math.random() * 0x7fffffff) });
-              changed();
-            },
-          }, [icon("dice", 15)]),
-          el("button", {
-            class: "mmc-ghost mmc-refine-seed",
-            text: random ? t("new every time") : String(current.seed),
-            title: random
-              ? t("Every refine comes out differently. Click to fix it.")
-              : t("Refining the same prompt gives the same rewrite. Click to vary it again."),
-            onclick: () => {
-              saveSettings({ seed: random ? Math.floor(Math.random() * 0x7fffffff) : -1 });
-              changed();
-            },
-          }),
-        ]), true),
+        dial(t("seed"), takesSeed(current)
+          ? seedControl(changed, {
+            random: t("Every refine comes out differently. Click to fix it."),
+            fixed: t("Refining the same prompt gives the same rewrite. Click to vary it again."),
+          })
+          : el("span", { class: "mmc-refine-hint", text: t("this server takes none") }), true),
       ]),
     );
   }

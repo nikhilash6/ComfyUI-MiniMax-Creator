@@ -2851,4 +2851,10 @@ export const zh = {
  "Render stopped. Nothing was written.": "渲染已停止，未写入任何文件。",
  "Render photo": "渲染照片",
  "{done} of {of} samples. Press to stop.": "{of} 个采样中的 {done} 个。按下即停止。",
+ "Seed": "种子",
+ "Every reply comes out differently. Click to fix it.": "每次回复都不同。点击固定。",
+ "The same message gets the same reply. Click to vary it again.": "同一条消息得到同样的回复。点击恢复变化。",
+ "Fixed, asking again gives the same answer and the same magic caption; new every time, each ask is a fresh roll. Shared with the Refiner. What a render samples on is another number, the room's own die.": "固定时，再问一次会得到同样的回答和同样的魔法描述；每次都新时，每次提问都重新掷一次。与精炼器共用。渲染采样用的是另一个数字，即房间自己的骰子。",
+ "this server takes none": "此服务器不接受",
+ "Claude's API has no seed, so every reply is a fresh roll whatever is set here.": "Claude 的 API 没有种子，所以无论这里怎么设置，每次回复都是重新掷的。",
 };
