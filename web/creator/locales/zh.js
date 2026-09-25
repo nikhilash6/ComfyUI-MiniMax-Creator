@@ -2591,6 +2591,7 @@ export const zh = {
  "Add these to the stack that is already here, leaving it in place.": "将这些 LoRA 添加到现有栈中，并保留原有内容。",
  "Throw away the current stack and use this one instead.": "移除当前栈的内容，改用这一套。",
  "Replace": "替换",
+ "Put another file on this card. It keeps its place in the strip and its seams; the trim and crop go with the old file.": "为这张卡片换一个文件。它在时间条中的位置和接缝保持不变；裁剪区间和画面裁切随旧文件一起移除。",
  "Delete the “{name}” stack": "删除“{name}”栈",
  "Delete for good": "永久删除",
  "That render was cancelled.": "该渲染已取消。",

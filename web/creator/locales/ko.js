@@ -2591,6 +2591,7 @@ export const ko = {
  "Add these to the stack that is already here, leaving it in place.": "현재 스택을 유지하면서 이 항목들을 추가합니다.",
  "Throw away the current stack and use this one instead.": "현재 스택을 비우고 이 스택으로 교체합니다.",
  "Replace": "교체",
+ "Put another file on this card. It keeps its place in the strip and its seams; the trim and crop go with the old file.": "이 카드에 다른 파일을 넣습니다. 스트립에서의 위치와 이음매는 그대로 유지되고, 구간 자르기와 크롭은 이전 파일과 함께 사라집니다.",
  "Delete the “{name}” stack": "“{name}” 스택 삭제",
  "Delete for good": "영구 삭제",
  "That render was cancelled.": "해당 렌더가 취소되었습니다.",

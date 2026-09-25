@@ -2590,6 +2590,7 @@ export const ja = {
  "Add these to the stack that is already here, leaving it in place.": "現在のスタックを残したまま、これらを追加します。",
  "Throw away the current stack and use this one instead.": "現在のスタックを外し、このスタックに置き換えます。",
  "Replace": "置き換える",
+ "Put another file on this card. It keeps its place in the strip and its seams; the trim and crop go with the old file.": "このカードに別のファイルを入れます。ストリップ上の位置とつなぎ目はそのまま残り、トリムとクロップは元のファイルと一緒に外れます。",
  "Delete the “{name}” stack": "スタック「{name}」を削除",
  "Delete for good": "完全に削除",
  "That render was cancelled.": "そのレンダリングはキャンセルされました。",

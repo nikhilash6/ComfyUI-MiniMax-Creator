@@ -2475,6 +2475,12 @@ class Timeline {
       el("div", { class: "mmc-tl-card-foot" }, [
         el("button", { class: "mmc-tl-edit", text: t("Trim"), onclick: () => this.editClip(index) }),
         el("button", {
+          class: "mmc-tl-edit", text: t("Replace"),
+          title: t("Put another file on this card. It keeps its place in the strip and its seams; "
+                 + "the trim and crop go with the old file."),
+          onclick: () => this.replaceClip(index),
+        }),
+        el("button", {
           class: `mmc-tl-edit${segment.crop ? " on" : ""}`, text: t("Crop"),
           title: cropLabel(segment.crop)
             || t("Crop the footage to part of the frame, or turn and mirror it, before it is scaled to the canvas"),
@@ -2917,15 +2923,60 @@ class Timeline {
    */
   async addClip() {
     if (S.addSegmentRefusal(this.timeline)) return;
+    const segment = await this.pickClip(this.timeline);
+    if (!segment) return;
+    this.timeline.segments.push(segment);
+    this.commit();
+  }
+
+  /**
+   * Put another file on the clip card at `index`, where it stands.
+   *
+   * Removing a clip and adding one lands the new card at the end and loses
+   * every seam that named the old one, so a clip in the middle of a continued
+   * run had to be rebuilt by hand. Here the card keeps its place and its seam
+   * — whether the shot before it runs in, the blend it spends, whether it
+   * plays its sound — and so does every seam and storyboard that names it by
+   * number. What belonged to the old file goes with it: its window and its
+   * framing were set against that footage, and mean nothing on another.
+   */
+  async replaceClip(index) {
+    const old = this.timeline.segments[index];
+    // Priced without the card it replaces, which is giving its seconds back.
+    const without = { ...this.timeline,
+                      segments: this.timeline.segments.filter((_, i) => i !== index) };
+    const fresh = await this.pickClip(without);
+    if (!fresh) return;
+    const kept = {};
+    for (const key of ["continue", "continue_audio", "feather", "feather_pin", "sound"]) {
+      if (key in old) kept[key] = old[key];
+    }
+    // A silent file cannot honour a sound switch left on by the one before it.
+    if (fresh.has_audio === false) delete kept.sound;
+    this.timeline.segments[index] = { ...fresh, ...kept };
+    this.commit();
+  }
+
+  /**
+   * One video from the picker, read into a clip card — or nothing, with the
+   * reason on the strip. `budget` is the timeline the card is priced against.
+   *
+   * The window and framing chosen in the picker's own segment and crop editors
+   * come through on the card: cutting a segment there is how you say which
+   * seconds you want, and a card that played the whole file anyway would be
+   * ignoring the one thing asked.
+   */
+  async pickClip(budget) {
     const chosen = await openPicker({
       kinds: ["video", "renders"], kind: "video", single: true,
       capacity: () => ({ used: 0, max: 1, filesLeft: 1 }),
     });
-    if (!chosen?.length) return;
+    if (!chosen?.length) return null;
+    const picked = chosen[0];
 
-    const probed = await probe(chosen[0].path).catch(() => ({}));
+    const probed = await probe(picked.path).catch(() => ({}));
     const segment = S.clipSegment({
-      filename: chosen[0].path,
+      filename: picked.path,
       duration: probed.duration ?? 0,
       width: probed.width ?? 0,
       height: probed.height ?? 0,
@@ -2934,23 +2985,24 @@ class Timeline {
       // better failure than greying out a control on a guess.
       hasAudio: probed.hasAudio !== false,
     });
-    // Asked again with the card's real length, which is the file's rather than
-    // a default: a ten-minute clip and a two-second one are not the same ask
-    // of the frame budget.
-    const refusal = S.addSegmentRefusal(this.timeline, S.clipSeconds(segment));
+    if (picked.trim) segment.trim = picked.trim;
+    if (picked.crop) segment.crop = picked.crop;
+    if (!segment.duration_s) {
+      this.refineError = t("Could not read how long {file} is — a clip card needs its length.",
+                           { file: picked.path });
+      this.render();
+      return null;
+    }
+    // Asked again with the card's real length — the window's if one was cut,
+    // else the file's — rather than a default: a ten-minute clip and a
+    // two-second one are not the same ask of the frame budget.
+    const refusal = S.addSegmentRefusal(budget, S.clipSeconds(segment));
     if (refusal) {
       this.refineError = refusal;
       this.render();
-      return;
+      return null;
     }
-    if (!segment.duration_s) {
-      this.refineError = t("Could not read how long {file} is — a clip card needs its length.",
-                           { file: chosen[0].path });
-      this.render();
-      return;
-    }
-    this.timeline.segments.push(segment);
-    this.commit();
+    return segment;
   }
 
   /** The clip's window, through the same trim editor a reference video uses. */
