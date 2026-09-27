@@ -29,6 +29,7 @@ Everything except the loading is in `refine.py`, unit-tested without torch.
 
 import gc
 import inspect
+import random
 
 from .families import refine
 
@@ -268,7 +269,12 @@ def chat(name, system, message, images=(), temperature=0.7, seed=-1, max_tokens=
     # derives from `BaseException`, so `except Exception` never sees it.
     import comfy.model_management as mm
 
+    # -1 is "new every time", and it has to be drawn here: core seeds a
+    # `torch.Generator` with whatever it is handed, so the 0 this once passed
+    # made every unfixed reply the same reply.
     seed = int(seed)
+    if seed < 0:
+        seed = random.randrange(2 ** 31)
     # Core's Qwen3.5 generate (9a77c1db, 2026-09-18) drafts ahead with the
     # checkpoint's MTP head inside a captured CUDA graph. On a 24 GB card with
     # the 27B w4a8 that capture failed (`cudaErrorStreamCaptureInvalidated`,
@@ -287,7 +293,7 @@ def chat(name, system, message, images=(), temperature=0.7, seed=-1, max_tokens=
                 top_p=TOP_P,
                 min_p=MIN_P,
                 repetition_penalty=REPETITION_PENALTY,
-                seed=seed if seed >= 0 else 0,
+                seed=seed,
                 **options,
             )
     except refine.RefineError:

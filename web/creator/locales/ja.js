@@ -2594,6 +2594,7 @@ export const ja = {
  "Add these to the stack that is already here, leaving it in place.": "現在のスタックを残したまま、これらを追加します。",
  "Throw away the current stack and use this one instead.": "現在のスタックを外し、このスタックに置き換えます。",
  "Replace": "置き換える",
+ "Put another file on this card. It keeps its place in the strip and its seams; the trim and crop go with the old file.": "このカードに別のファイルを入れます。ストリップ上の位置とつなぎ目はそのまま残り、トリムとクロップは元のファイルと一緒に外れます。",
  "Delete the “{name}” stack": "スタック「{name}」を削除",
  "Delete for good": "完全に削除",
  "That render was cancelled.": "そのレンダリングはキャンセルされました。",
@@ -2860,4 +2861,10 @@ export const ja = {
  "From the first detected sampling progress or preview to the saved result, including decoding, post-processing and saving; not sampling alone.": "サンプリングの進行またはプレビューを最初に検出してから、結果が保存されるまでの時間です。デコード、後処理、保存を含み、サンプリングだけの時間ではありません。",
  "The workflow is still running.": "ワークフローはまだ実行中です。",
  "Timing is unavailable for this result.": "この結果の時間情報は利用できません。",
+ "Seed": "シード",
+ "Every reply comes out differently. Click to fix it.": "返答は毎回変わります。クリックで固定。",
+ "The same message gets the same reply. Click to vary it again.": "同じメッセージには同じ返答になります。クリックで再び変化させます。",
+ "Fixed, asking again gives the same answer and the same magic caption; new every time, each ask is a fresh roll. Shared with the Refiner. What a render samples on is another number, the room's own die.": "固定すると、もう一度尋ねても同じ答えと同じマジックキャプションになります。毎回新規なら、尋ねるたびに新しく振り直します。リファイナーと共有。レンダーのサンプリングに使う数値は別で、ルーム自身のサイコロです。",
+ "this server takes none": "このサーバーは受け付けません",
+ "Claude's API has no seed, so every reply is a fresh roll whatever is set here.": "Claude の API にはシードがないため、ここで何を設定しても返答は毎回新しくなります。",
 };

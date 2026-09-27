@@ -2595,6 +2595,7 @@ export const zh = {
  "Add these to the stack that is already here, leaving it in place.": "将这些 LoRA 添加到现有栈中，并保留原有内容。",
  "Throw away the current stack and use this one instead.": "移除当前栈的内容，改用这一套。",
  "Replace": "替换",
+ "Put another file on this card. It keeps its place in the strip and its seams; the trim and crop go with the old file.": "为这张卡片换一个文件。它在时间条中的位置和接缝保持不变；裁剪区间和画面裁切随旧文件一起移除。",
  "Delete the “{name}” stack": "删除“{name}”栈",
  "Delete for good": "永久删除",
  "That render was cancelled.": "该渲染已取消。",
@@ -2861,4 +2862,10 @@ export const zh = {
  "From the first detected sampling progress or preview to the saved result, including decoding, post-processing and saving; not sampling alone.": "从首次检测到采样进度或预览，到结果保存完成的时间，包括解码、后处理和保存，并非仅指采样时间。",
  "The workflow is still running.": "工作流仍在运行。",
  "Timing is unavailable for this result.": "此结果的耗时信息不可用。",
+ "Seed": "种子",
+ "Every reply comes out differently. Click to fix it.": "每次回复都不同。点击固定。",
+ "The same message gets the same reply. Click to vary it again.": "同一条消息得到同样的回复。点击恢复变化。",
+ "Fixed, asking again gives the same answer and the same magic caption; new every time, each ask is a fresh roll. Shared with the Refiner. What a render samples on is another number, the room's own die.": "固定时，再问一次会得到同样的回答和同样的魔法描述；每次都新时，每次提问都重新掷一次。与精炼器共用。渲染采样用的是另一个数字，即房间自己的骰子。",
+ "this server takes none": "此服务器不接受",
+ "Claude's API has no seed, so every reply is a fresh roll whatever is set here.": "Claude 的 API 没有种子，所以无论这里怎么设置，每次回复都是重新掷的。",
 };

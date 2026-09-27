@@ -455,9 +455,18 @@ offered while a render is still on the queue below that point.
 Under a finished card: its handle, which drops a chip into the box; on a
 still, **→ start**, **→ end** and **→ ref**, which drop the chip already
 saying what the still is for; and **Retake**, which runs the same request
-again on a new seed without moving the room's. The corner button turns the
+again on a new seed without moving the room's. Retake and *Try again* draw
+on the models the room is set to now, not the ones the first take used: a
+still made on Krea 2 and retaken after the pill moved to Qwen is drawn on
+Qwen. The corner button turns the
 card over onto its slate — the prompt as asked, what the sampler read, the
 seed, what it opened from — and two presses on the picture open the loupe.
+
+**The thinker's seed.** *Thinks with* has the same seed as the Refiner:
+fixed, asking again gives the same reply; *new every time*, each ask is a
+fresh roll. It works in-process and on servers that take one (LM Studio,
+Ollama, OpenAI, OpenRouter); Claude's API has none, and the popover
+says so. It is not the render's seed, which is the room's own die.
 
 **On one GPU.** A model running inside this ComfyUI shares the card with your
 renders, so a reply waits behind whatever is sampling and the room says so

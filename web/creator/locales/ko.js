@@ -2595,6 +2595,7 @@ export const ko = {
  "Add these to the stack that is already here, leaving it in place.": "현재 스택을 유지하면서 이 항목들을 추가합니다.",
  "Throw away the current stack and use this one instead.": "현재 스택을 비우고 이 스택으로 교체합니다.",
  "Replace": "교체",
+ "Put another file on this card. It keeps its place in the strip and its seams; the trim and crop go with the old file.": "이 카드에 다른 파일을 넣습니다. 스트립에서의 위치와 이음매는 그대로 유지되고, 구간 자르기와 크롭은 이전 파일과 함께 사라집니다.",
  "Delete the “{name}” stack": "“{name}” 스택 삭제",
  "Delete for good": "영구 삭제",
  "That render was cancelled.": "해당 렌더가 취소되었습니다.",
@@ -2861,4 +2862,10 @@ export const ko = {
  "From the first detected sampling progress or preview to the saved result, including decoding, post-processing and saving; not sampling alone.": "샘플링 진행 또는 미리보기가 처음 감지된 시점부터 결과 저장까지의 시간입니다. 디코딩, 후처리와 저장을 포함하며, 샘플링만의 시간이 아닙니다.",
  "The workflow is still running.": "워크플로가 아직 실행 중입니다.",
  "Timing is unavailable for this result.": "이 결과의 시간 정보를 확인할 수 없습니다.",
+ "Seed": "시드",
+ "Every reply comes out differently. Click to fix it.": "답변이 매번 달라집니다. 클릭하면 고정합니다.",
+ "The same message gets the same reply. Click to vary it again.": "같은 메시지에는 같은 답변이 나옵니다. 클릭하면 다시 달라집니다.",
+ "Fixed, asking again gives the same answer and the same magic caption; new every time, each ask is a fresh roll. Shared with the Refiner. What a render samples on is another number, the room's own die.": "고정하면 다시 물어도 같은 답과 같은 매직 캡션이 나옵니다. 매번 새로면 물을 때마다 새로 굴립니다. 리파이너와 공유합니다. 렌더가 샘플링하는 숫자는 따로 있으며, 룸 자체의 주사위입니다.",
+ "this server takes none": "이 서버는 받지 않습니다",
+ "Claude's API has no seed, so every reply is a fresh roll whatever is set here.": "Claude API에는 시드가 없어서, 여기서 무엇을 설정하든 답변은 매번 새로 나옵니다.",
 };

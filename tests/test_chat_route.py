@@ -255,4 +255,53 @@ refuses("a caption over a base that reads prose is refused",
 refuses("a caption that is not JSON is refused",
         lambda: route._with_caption(still_action, "a fox", IDEO_PRE, True), "not a JSON object")
 
+# ---- a render asked for again -----------------------------------------------
+#
+# Retake and Try again replay an action the turn stamped. The arch on it is the
+# rail's at that moment, and the pill may have moved since: a still made on
+# Krea, the room switched to Qwen, Retake pressed, must draw on Qwen.
+
+fox = chat.validate({"act": "render", "kind": "still", "prompt": "a fox"}, [])
+on_krea = {**fox, "arch": "krea2"}
+QWEN_RAIL = {**route._rail({"still_family": "qwen21"}), "edit_arch": None}
+check("a stamp follows the rail, not the arch the action was made on",
+      route._stamp({}, on_krea, [], QWEN_RAIL, [], held=on_krea)["arch"], "qwen21")
+check("a clip is left as it was", route._stamp({}, {**fox, "kind": "video"}, [], QWEN_RAIL, []),
+      {**fox, "kind": "video"})
+
+captioned = {**still_action, "caption": GOOD}
+magic_on = {**block, "magic": True}
+IDEO_STAMP = {**IDEO_RAIL, "edit_arch": None}
+try:
+    route.refine_routes._backend = stand_in()
+    check("the same arch keeps the caption it was written, asking nothing",
+          (route._stamp(magic_on, captioned, [], IDEO_STAMP, MEMBER, held=captioned)["caption"], asked),
+          (GOOD, []))
+    check("moved off Ideogram, the caption is dropped",
+          "caption" in route._stamp(magic_on, captioned, [], QWEN_RAIL, MEMBER, held=captioned), False)
+    check("and with the switch off, too",
+          "caption" in route._stamp(block, captioned, [], IDEO_STAMP, MEMBER, held=captioned), False)
+    route.refine_routes._backend = stand_in(GOOD)
+    moved = route._stamp(magic_on, {**still_action, "arch": "krea2"}, [], IDEO_STAMP, MEMBER,
+                         held={**still_action, "arch": "krea2"})
+    check("moved onto Ideogram with the switch on, a caption is written",
+          (moved["arch"], len(asked), "caption" in moved), ("ideogram4", 1, True))
+finally:
+    route.refine_routes._backend = _real_backend
+    asked.clear()
+
+_real_stamp_rail = route._stamp_rail
+route._stamp_rail = lambda block: (IDEO_STAMP, None)
+try:
+    body = {"action": {**fox, "arch": "krea2"}, "settings": magic_on, "ledger": [], "piece": {}}
+    check("without the model, a caption owed is said rather than written",
+          route._again(body, write=False), None)
+    route._stamp_rail = lambda block: (QWEN_RAIL, None)
+    check("and a stamp that owes none answers inline",
+          route._again(body, write=False)["arch"], "qwen21")
+    refuses("an action that renders nothing is refused",
+            lambda: route._again({**body, "action": {"act": "say", "say": "hi"}}), "nothing to render")
+finally:
+    route._stamp_rail = _real_stamp_rail
+
 passed("the chat render route builds over the node on the canvas")
