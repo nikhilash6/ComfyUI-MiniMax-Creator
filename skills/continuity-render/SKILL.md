@@ -17,12 +17,13 @@ filenames or set sampler values.
   when the skill loads). Run it as `python3 <skill dir>/render.py`. **Do not
   search the filesystem for it.** It is self-contained (Python 3.9+, standard
   library only).
-- **Server:** in this order: a URL the user gave, then one in project
-  instructions or memory, then `$COMFY_URL`, then the default
-  `http://127.0.0.1:8188`. Pass a URL with `--url`. Don't probe ports or
-  scan for servers. If `families` cannot reach the chosen one, say so and ask
-  for the address. If it is reached through an SSH tunnel, open the tunnel
-  first.
+- **Server:** if the user has not given you the ComfyUI address in this
+  conversation, **ask them for it before running anything**, as one short
+  question (for example "Which ComfyUI should I render on? Give me its URL,
+  e.g. http://127.0.0.1:8188"). Don't guess, and don't read env vars,
+  memory or config for it. Don't probe ports or scan for servers. Pass the
+  answer with `--url` on every call. If `families` can't reach it, say so and
+  ask again. Don't try other addresses.
 
 Always start with:
 
