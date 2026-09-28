@@ -6,6 +6,15 @@ export const css = `
    window. What is new below is the card, which is a different kind of thing from
    a 140px media square and is laid out as one. */
 
+/* This row is also used by the Style catalogue. Keep a visible drag fallback
+   for mouse users; override only this library strip, not every hidden rail. */
+.mmc-overlay .mmc-preset-shelf-strip { scrollbar-width: thin; scrollbar-color: var(--mmc-line-3) transparent; }
+.mmc-overlay .mmc-preset-shelf-strip::-webkit-scrollbar { display: block; height: 6px; }
+.mmc-overlay .mmc-preset-shelf-strip::-webkit-scrollbar-thumb { background: var(--mmc-line-3); border-radius: 3px; }
+.mmc-overlay .mmc-preset-shelf-strip .mmc-shelf:focus-visible {
+  outline: 2px solid var(--mmc-accent); outline-offset: -2px;
+}
+
 .mmc-preset-split { flex: 1; display: flex; min-height: 0; }
 .mmc-preset-grid {
   flex: 1; overflow-y: auto; padding: 2px 22px 22px;

@@ -5,6 +5,7 @@ export const css = `
 
 .mmc-cast { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mmc-cast-head { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.mmc-cast-section-warning { white-space: pre-line; overflow-wrap: anywhere; }
 .mmc-cast-hint {
   font-size: calc(11px * var(--mmc-type)); color: var(--mmc-off); flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -66,8 +67,8 @@ export const css = `
 }
 .mmc-cast-grip:hover { background: var(--mmc-surface-2); }
 .mmc-cast-grip:focus-visible { outline: 2px solid var(--mmc-accent); outline-offset: -2px; }
-.mmc-cast-grip .mmc-cast-face { width: 30px; height: 30px; border-radius: 8px; }
-.mmc-cast-grip .mmc-cast-face-blank svg { width: 16px; height: 16px; }
+.mmc-cast-row > .mmc-cast-face { width: 30px; height: 30px; border-radius: 8px; margin-left: 9px; }
+.mmc-cast-row > .mmc-cast-face-blank svg { width: 16px; height: 16px; }
 
 .mmc-cast-line-ident { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
 .mmc-cast-line-name {

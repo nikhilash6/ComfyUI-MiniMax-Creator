@@ -53,7 +53,9 @@
 // lives, and there are two hosts.
 
 import { refmodFileUrl, viewUrl } from "./api.js";
-import { dismissable, el, icon, mountOverlay, placeNear } from "./dom.js";
+import { dismissable, el, icon, placeNear, closeOwnedPopovers } from "./dom.js";
+import { createDisclosure } from "./disclosure.js";
+import { isVisualReference, previewable, openReferencePreview } from "./reference-preview.js";
 import { t } from "./i18n.js";
 import { loraBase, openLoras } from "./loras.js";
 import { DEFAULT_SPACE, costMark, keepable, looks, modIn, remakeMods } from "./refmod.js";
@@ -488,7 +490,7 @@ function weightField({ entry, touch, done }) {
 export class CastShelf {
   constructor({ getCast, setCast, getAssets, addAsset, whereCited, cite, touch, commit,
                 keep = null, library = null, mod = null, vae = null, families = null, rename = null,
-                dropAssets = null, canvas = null, family = null }) {
+                dropAssets = null, canvas = null, family = null, disclosure = false }) {
     this.getCast = getCast;
     this.family = family ?? (() => S.DEFAULT_VIDEO_FAMILY);
     this.dropAssets = dropAssets;
@@ -524,6 +526,10 @@ export class CastShelf {
     this.kept = null;
     this.note = null;
     this.root = el("div", { class: "mmc-cast" });
+    // A Timeline-only visibility choice, never part of creator_data. The
+    // node-face shelf keeps its existing layout and member-level disclosure.
+    this.disclosureEnabled = disclosure;
+    this.section = null;
     // What each family gets when it renders them — the derived half of a
     // member, drawn per family. The panel owns which tab is open; everything
     // it does lands through these callbacks, because where a member's files
@@ -558,10 +564,10 @@ export class CastShelf {
    *   answers to — a subject deleted out from under a sentence that still writes
    *   them, which must leave the shelf exactly as it was.
    */
-  openMember(handle) {
+  openMember(handle, { forceOpen = false } = {}) {
     const subject = (this.getCast() ?? []).find((s) => s.handle === handle);
     if (!subject) return false;
-    const shutting = this.opened === subject;
+    const shutting = !forceOpen && this.opened === subject;
     this.opened = shutting ? null : subject;
     // `changing` is card-local: a row waiting for an "instead" nobody typed is
     // not a change, and it must not still be waiting on the next card opened.
@@ -569,6 +575,10 @@ export class CastShelf {
     this.render();
     return shutting ? "shut" : "opened";
   }
+
+  isExpanded() { return this.section?.isOpen() ?? true; }
+
+  reveal() { this.section?.setOpen(true); }
 
   /** A structural change: somebody joined or left, or a file moved between their
    *  slots. The host redraws what else was reading the cast, and the shelf
@@ -638,35 +648,34 @@ export class CastShelf {
     const cast = this.getCast();
     // A member removed elsewhere must not keep the shelf open on nobody.
     if (this.opened && !cast.includes(this.opened)) this.opened = null;
-    this.root.replaceChildren(
-      el("div", { class: "mmc-cast-head" }, [
-        el("span", { class: "mmc-tl-field-name", text: t("Cast") }),
-        el("span", {
-          class: "mmc-cast-hint",
-          text: t("Who is in it. Name them once here, write @anna in the prompt, "
-                + "and whatever is behind them rides in with them."),
-        }),
-        // The roster, where the host can reach it. First of the two, because
-        // somebody you have already built is the better answer than building them
-        // again — which is the whole reason the library has a Cast tab.
-        ...(this.library ? [el("button", {
-          class: "mmc-ghost mmc-cast-new",
-          title: t("Take somebody out of the cast library — they arrive with their "
-                 + "pictures, and they are attached as they land."),
-          onclick: () => this.library(),
-        }, [icon("star", 13), el("span", { text: t("From the library") })])] : []),
-        el("button", {
-          class: "mmc-ghost mmc-cast-new",
-          title: t("Cast somebody — a person, an object, a place or a look. Give them "
-                 + "pictures to be built out of, or just describe them: a name with a "
-                 + "description behind it is what keeps them the same person in shot 1 "
-                 + "and in shot 9."),
-          onclick: () => this.addSubject(),
-        }, [el("span", { text: "+" }), el("span", { text: t("Add someone") })]),
-      ]),
-      ...(cast.length
-        ? [el("div", { class: "mmc-cast-list" }, cast.map((s) => this.card(s)))]
-        : [el("button", {
+    const title = t("Cast");
+    const hint = t("Who is in it. Name them once here, write @anna in the prompt, "
+                 + "and whatever is behind them rides in with them.");
+    // Keep action targets mounted too: a refresh while a header has focus must
+    // not lose the pending press or turn an Add into a section toggle.
+    this.headerActions ??= [
+      ...(this.library ? [el("button", {
+        type: "button", class: "mmc-ghost mmc-cast-new",
+        title: t("Take somebody out of the cast library — they arrive with their "
+               + "pictures, and they are attached as they land."),
+        onclick: async () => {
+          const before = new Set(this.getCast());
+          await this.library();
+          if (this.getCast().some((subject) => !before.has(subject))) this.reveal();
+        },
+      }, [icon("star", 13), el("span", { text: t("From the library") })])] : []),
+      el("button", {
+        type: "button", class: "mmc-ghost mmc-cast-new",
+        title: t("Cast somebody — a person, an object, a place or a look. Give them "
+               + "pictures to be built out of, or just describe them: a name with a "
+               + "description behind it is what keeps them the same person in shot 1 "
+               + "and in shot 9."),
+        onclick: () => this.addSubject(),
+      }, [el("span", { text: "+" }), el("span", { text: t("Add someone") })]),
+    ];
+    const content = cast.length
+        ? el("div", { class: "mmc-cast-list" }, cast.map((s) => this.card(s)))
+        : el("button", {
             class: "mmc-cast-empty",
             onclick: () => this.addSubject(),
           }, [
@@ -676,8 +685,35 @@ export class CastShelf {
               text: t("A person, an object, a place or a look that comes back shot "
                     + "after shot. Cast them once and write @anna."),
             }),
-          ])]),
-    );
+          ]);
+    if (this.disclosureEnabled) {
+      if (!this.section) {
+        this.section = createDisclosure({ title, hint, content, actions: this.headerActions,
+          onBeforeCollapse: () => closeOwnedPopovers(this.section.body) });
+        this.sectionWarning = el("div", { class: "mmc-tl-pool-bad mmc-cast-section-warning", role: "status" });
+        this.section.root.append(this.sectionWarning);
+        this.root.replaceChildren(this.section.root);
+      } else {
+        this.section.setText(title, hint);
+        this.section.body.replaceChildren(content);
+      }
+      // Folding should not hide why the piece cannot queue. Keep diagnostics
+      // outside the folded list; all validation still comes from the same state.
+      const problems = cast.map((subject) => {
+        const message = this.problem(subject);
+        return message ? `@${subject.handle || t("unnamed")}: ${t(message)}` : "";
+      }).filter(Boolean);
+      this.sectionWarning.textContent = problems.join("\n");
+      this.sectionWarning.hidden = !problems.length;
+    } else {
+      this.root.replaceChildren(
+        el("div", { class: "mmc-cast-head" }, [
+          el("span", { class: "mmc-tl-field-name", text: title }),
+          el("span", { class: "mmc-cast-hint", text: hint }),
+          ...this.headerActions,
+        ]), content,
+      );
+    }
   }
 
   // ---- one card --------------------------------------------------------------
@@ -712,13 +748,15 @@ export class CastShelf {
    *  its own preview gesture; the other details on the line are readouts. */
   shutRow(subject, problem, where) {
     return el("div", { class: "mmc-cast-row" }, [
+      // A keyboard-accessible preview is a sibling of the edit button, not
+      // an interactive element nested inside another button.
+      this.face(subject),
       el("button", {
         class: "mmc-cast-grip",
         "aria-expanded": "false",
         title: t("Open @{handle}", { handle: subject.handle }),
         onclick: () => { this.opened = subject; this.render(); },
       }, [
-        this.face(subject),
         el("span", { class: "mmc-cast-line-ident" }, [
           el("span", { class: "mmc-cast-line-name" }, [
             el("span", { class: "mmc-asset-handle", text: "@" }),
@@ -1075,64 +1113,47 @@ export class CastShelf {
     this.render();
   }
 
-  /** Their face, where one of their pictures can supply it: the first still they are
-   *  built out of. A subject made of a clip alone, or of words alone, keeps the
-   *  glyph — there is no picture of them to show, and inventing one would be
-   *  showing a file that says nothing about their looks. */
-  face(subject) {
+  /** All visual sources, resolved afresh so previews never keep replaced files.
+   *  Voice-only sources are not visual references, even if backed by a video. */
+  visualReferences(subject) {
     const assets = this.getAssets();
-    const still = (subject.from ?? [])
-      .map((handle) => assets.find((a) => a.handle === handle))
-      .find((a) => a?.kind === "image" || (a && S.isRefMod(a)));
-    if (still?.filename) {
-      return el("img", {
-        class: "mmc-cast-face", alt: "",
-        src: viewUrl(still.filename, { preview: true, crop: S.thumbCrop(still) }),
-        title: t("{path} — double-click to view", { path: still.filename }),
-        // Only the representative image beside @name previews on double-click.
-        // The reference tiles below keep their role menus, and clicking the
-        // rest of a collapsed header still opens the member for editing.
-        // Do not blur a name/description field on the first click: its deferred
-        // redraw could replace this image before the second click arrives.
-        onmousedown: (event) => event.preventDefault(),
-        onclick: (event) => event.stopPropagation(),
-        ondblclick: (event) => {
-          event.stopPropagation();
-          this.viewFace(subject, still);
-        },
-      });
-    }
-    // The glyph follows what they are: a person glyph over a described *place*
-    // says the wrong thing, and the card's whole job is saying what they are.
-    return el("span", { class: "mmc-cast-face mmc-cast-face-blank" },
-              [icon(BLANK_FACE[subject.takes ?? "person"] ?? "face", 22)]);
+    const handles = new Set([...(subject.from ?? []), ...S.motionOf(subject), ...S.replacesOf(subject)]);
+    return [...handles].map((handle) => assets.find((asset) => asset.handle === handle))
+      .filter(isVisualReference);
   }
 
-  /** The picker's read-only lightbox, on the same image and framing as the face. */
-  viewFace(subject, asset) {
-    if (!asset?.filename) return;
-    const caption = `@${subject.handle || t("unnamed")}`;
-    const previous = document.activeElement;
-    let unmount;
-    const close = () => {
-      unmount();
-      if (previous?.isConnected) previous.focus();
-    };
-    const overlay = el("div", {
-      class: "mmc-overlay", tabindex: "-1", role: "dialog",
-      "aria-modal": "true", "aria-label": caption,
-      onpointerdown: (event) => { if (event.target === overlay) close(); },
-    }, [
-      el("div", { class: "mmc-light" }, [
-        el("img", {
-          class: "mmc-light-media", alt: caption,
-          src: viewUrl(asset.filename, { crop: S.thumbCrop(asset) }),
-        }),
-        el("div", { class: "mmc-light-name", text: caption }),
-      ]),
-    ]);
-    unmount = mountOverlay(overlay, close);
-    overlay.focus();
+  /** Keep the first appearance still as the face. An appearance clip can supply
+   *  a thumbnail too; a motion donor must not impersonate the subject's looks. */
+  face(subject) {
+    const assets = this.getAssets();
+    const appearance = (subject.from ?? [])
+      .map((handle) => assets.find((a) => a.handle === handle)).filter(isVisualReference);
+    const face = appearance.find((a) => a.kind === "image" || S.isRefMod(a)) ?? appearance[0];
+    const sources = this.visualReferences(subject);
+    const thumb = face?.filename
+      ? el("img", {
+        class: "mmc-cast-face", alt: "",
+        src: viewUrl(face.filename, { preview: true, crop: S.thumbCrop(face) }),
+      })
+      : el("span", { class: "mmc-cast-face mmc-cast-face-blank" },
+          [icon(BLANK_FACE[subject.takes ?? "person"] ?? "face", 22)]);
+    if (sources.length) {
+      previewable(thumb, {
+        title: t("{path} — double-click to view", { path: face?.filename ?? `@${subject.handle}` }),
+        open: () => this.viewFace(subject, face, thumb),
+      });
+    }
+    return thumb;
+  }
+
+  /** Same read-only viewer as segment references, including mixed stills/clips. */
+  viewFace(subject, asset, returnFocus = null) {
+    const sources = this.visualReferences(subject);
+    if (!sources.length) return;
+    return openReferencePreview(sources, {
+      initial: Math.max(0, sources.findIndex((one) => one.handle === asset?.handle)),
+      caption: `@${subject.handle || t("unnamed")}`, returnFocus,
+    });
   }
 
   nameField(subject) {
@@ -1774,6 +1795,7 @@ export class CastShelf {
    *  placeholder rather than a guess, because the name is the thing the user
    *  will type and only they know what it should be. */
   addSubject() {
+    this.reveal();
     const cast = this.getCast();
     const taken = new Set(cast.map((s) => s.handle));
     let handle = "subject";

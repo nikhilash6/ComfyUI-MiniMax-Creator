@@ -13,6 +13,16 @@ import { viewUrl } from "./web/creator/api.js";
 import { thumbCrop } from "./web/creator/state.js";
 
 globalThis.app = { extensionManager: { setting: { get: () => "en" } } };
+// Media decoding is tested in the real-browser suite. These shims verify the
+// Cast integration's DOM types and cleanup calls without pretending to play.
+globalThis.HTMLMediaElement = class {
+  static [Symbol.hasInstance](node) { return ["VIDEO", "AUDIO"].includes(node?.tagName); }
+};
+Node.prototype.pause = function() { this.pauseCalls = (this.pauseCalls ?? 0) + 1; };
+Node.prototype.load = function() { this.loadCalls = (this.loadCalls ?? 0) + 1; };
+Node.prototype.prepend = function(...nodes) {
+  for (const node of nodes.reverse()) { node.remove(); this.children.unshift(node); node.parent = this; }
+};
 const keyListeners = new Set();
 const addListener = document.addEventListener.bind(document);
 const removeListener = document.removeEventListener.bind(document);
@@ -49,7 +59,7 @@ const fire = (node, type) => {
   if (!node) throw new Error("Missing target for " + type);
   const chain = [];
   for (let at = node; at; at = at.parent) chain.push(at);
-  const event = { target: node, currentTarget: node, stopped: false,
+  const event = { target: node, currentTarget: node, stopped: false, button: 0,
     stopPropagation() { this.stopped = true; }, preventDefault() {} };
   for (const at of chain) {
     event.currentTarget = at;
@@ -61,7 +71,8 @@ const fire = (node, type) => {
 const settle = async () => {
   for (let i = 0; i < 4; i++) await new Promise((done) => setTimeout(done, 0));
 };
-const viewer = () => document.body.querySelector(".mmc-light");
+const viewer = () => document.body.querySelector(".mmc-reference-preview");
+const previewMedia = () => viewer()?.querySelector(".mmc-reference-preview-stage")?.children[0];
 const closeViewer = () => fire(viewer().parent, "pointerdown");
 const topFace = () => shelf.root.querySelector(".mmc-cast-top").querySelector(".mmc-cast-face");
 let bubbled = 0;
@@ -74,7 +85,7 @@ for (const [handle, expected] of [["subject", assets[0]], ["prop", assets[1]]]) 
   const face = topFace();
   let preventsBlur = false;
   for (const listener of face.listeners?.mousedown ?? []) {
-    listener({ preventDefault() { preventsBlur = true; } });
+    listener({ button: 0, preventDefault() { preventsBlur = true; } });
   }
   fire(face, "click");
   const single = { preview: Boolean(viewer()), opened: shelf.opened.handle };
@@ -84,14 +95,14 @@ for (const [handle, expected] of [["subject", assets[0]], ["prop", assets[1]]]) 
   await settle();
   const overlay = viewer();
   out.members.push({ handle, single, stopped, preventsBlur, bubbled: bubbled - beforeBubble,
-    count: document.body.querySelectorAll(".mmc-light").length,
-    source: overlay?.querySelector(".mmc-light-media")?.attrs.src,
+    count: document.body.querySelectorAll(".mmc-reference-preview").length,
+    source: previewMedia()?.attrs.src,
     expected: viewUrl(expected.filename, { crop: thumbCrop(expected) }),
-    caption: overlay?.querySelector(".mmc-light-name")?.textContent,
+    caption: overlay?.querySelector("strong")?.textContent,
     opened: shelf.opened.handle,
   });
   if (overlay) {
-    fire(overlay.querySelector(".mmc-light-media"), "pointerdown");
+    fire(previewMedia(), "pointerdown");
     out.members.at(-1).insideKeepsOpen = Boolean(viewer());
     if (handle === "prop") {
       for (const listener of [...keyListeners]) listener({ key: "Escape", stopPropagation() {} });
@@ -108,12 +119,12 @@ assets.push({ handle: "ref-3", kind: "image", filename: "lighting/location.png [
 shelf.openMember("location");
 fire(topFace(), "dblclick");
 await settle();
-out.appended = { source: viewer()?.querySelector(".mmc-light-media")?.attrs.src,
+out.appended = { source: previewMedia()?.attrs.src,
                  expected: viewUrl(assets.at(-1).filename), opened: shelf.opened.handle };
 if (viewer()) closeViewer();
 subjects.pop(); assets.pop();
 
-for (const handle of ["words", "motion", "missing"]) {
+for (const handle of ["words", "missing"]) {
   shelf.openMember(handle);
   const face = topFace();
   fire(face, "click"); fire(face, "dblclick");
@@ -121,6 +132,28 @@ for (const handle of ["words", "motion", "missing"]) {
   out.empty.push({ handle, blank: face.classList.contains("mmc-cast-face-blank"),
                    preview: Boolean(viewer()), opened: shelf.opened.handle });
 }
+
+// Video-only appearance now previews a real video; the representative remains
+// a lightweight still thumbnail, and closing releases the player's source.
+shelf.openMember("motion");
+const videoFace = topFace();
+fire(videoFace, "dblclick");
+const video = previewMedia();
+out.video = { face: videoFace.tagName, media: video?.tagName,
+  source: video?.attrs.src, expected: viewUrl(assets[2].filename),
+  controls: video?.attrs.controls === "", autoplay: "autoplay" in (video?.attrs ?? {}) };
+closeViewer();
+out.video.cleaned = video.pauseCalls === 1 && video.loadCalls === 1 && !("src" in video.attrs);
+
+// A mixed appearance list starts on the existing representative still, but
+// navigation exposes the attached video without changing its role or handle.
+shelf.openMember("prop");
+fire(topFace(), "dblclick");
+const nav = viewer().querySelector(".mmc-reference-preview-nav");
+fire(nav.children[0], "click");
+out.mixed = { media: previewMedia()?.tagName, source: previewMedia()?.attrs.src,
+  expected: viewUrl(assets[2].filename) };
+closeViewer();
 
 shelf.openMember("subject");
 const lower = shelf.root.querySelector(".mmc-cast-top").parent.querySelector(".mmc-cast-ref");
@@ -142,8 +175,8 @@ fire(collapsed.querySelector(".mmc-cast-face"), "click");
 out.collapsedImageClick = { opened: shelf.opened?.handle ?? null, preview: Boolean(viewer()) };
 fire(collapsed.querySelector(".mmc-cast-face"), "dblclick");
 out.collapsedImageDoubleClick = { opened: shelf.opened?.handle ?? null,
-  count: document.body.querySelectorAll(".mmc-light").length,
-  source: viewer()?.querySelector(".mmc-light-media")?.attrs.src };
+  count: document.body.querySelectorAll(".mmc-reference-preview").length,
+  source: previewMedia()?.attrs.src };
 if (viewer()) closeViewer();
 fire(collapsed.querySelector(".mmc-cast-grip"), "click");
 out.collapsedGrip = { opened: shelf.opened?.handle, preview: Boolean(viewer()) };
@@ -202,8 +235,13 @@ for member in got["members"]:
           [f"@{handle}", True, True, True])
 check("newly added members also preview their own image", got["appended"],
       {"source": got["appended"]["expected"], "expected": got["appended"]["expected"], "opened": "location"})
-check("members without an available still safely keep their blank header", got["empty"],
-      [{"handle": handle, "blank": True, "preview": False, "opened": handle} for handle in ("words", "motion", "missing")])
+check("members without a visual source safely keep their blank header", got["empty"],
+      [{"handle": handle, "blank": True, "preview": False, "opened": handle} for handle in ("words", "missing")])
+check("video-only appearance uses a playable source and releases it on close", got["video"],
+      {"face": "IMG", "media": "VIDEO", "source": got["video"]["expected"],
+       "expected": got["video"]["expected"], "controls": True, "autoplay": False, "cleaned": True})
+check("mixed appearance can navigate from its representative still to video", got["mixed"],
+      {"media": "VIDEO", "source": got["mixed"]["expected"], "expected": got["mixed"]["expected"]})
 check("lower reference thumbnails retain their role-menu interaction", got["lower"],
       {"hasRoleMenu": True, "previewAfterClick": False, "doubleClickHandler": False,
        "thumbDoubleClickHandler": False, "previewAfterDoubleClick": False})

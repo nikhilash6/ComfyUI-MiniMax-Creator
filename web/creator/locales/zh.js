@@ -3,6 +3,13 @@
 // must match the string in the code to the character, and a missing key simply
 // shows the English.
 export const zh = {
+ "Reference preview": "参考素材预览",
+ "Previous reference": "上一个参考素材",
+ "Next reference": "下一个参考素材",
+ "Source video preview — crop, trim and mirroring are not applied.": "原始视频预览 — 不应用画面裁剪、片段范围或水平翻转设置。",
+ "RefMod preview image — the original video is not stored here.": "RefMod 预览图 — 此文件中未保存原始视频。",
+ "Preview unavailable. The file may be missing, or this browser may not support its format.": "无法显示预览。文件可能不存在，或此浏览器不支持该格式。",
+ "Configured range: {start}–{end} s": "设定的片段范围：{start}–{end} 秒",
  "Turbo off — running RAW. On, the distillation is loaded — the Turbo checkpoint, or the same weights as a LoRA — and the row drops to the picked quality at cfg 1.": "Turbo 关闭——运行 RAW。开启后加载蒸馏权重——Turbo 检查点，或同一权重的 LoRA 形式——该行降到所选质量档并使用 cfg 1。",
  "Turbo off. Ideogram ships no distilled checkpoint, so this runs a distillation LoRA over the ordinary one: a handful of steps at cfg 1, with the unconditional checkpoint left unloaded. The first press picks the file.": "Turbo 关闭。Ideogram 没有发布蒸馏检查点，因此这里是在普通检查点之上叠加蒸馏 LoRA：cfg 1 下的少数几步，且不加载无条件检查点。首次按下用于选择文件。",
  "Turbo — {lora} over the ordinary checkpoint at {steps} steps, cfg 1. Switching off removes the LoRA and puts the sampler row back.": "Turbo——在普通检查点之上叠加 {lora}，{steps} 步、cfg 1。关闭会移除该 LoRA 并恢复采样器行。",
