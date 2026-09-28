@@ -23,6 +23,8 @@ const DOUBLE_CLICK_MS = 250;
 export function previewable(thumb, { title, open, click = null }) {
   thumb.title = title;
   thumb.classList.add("mmc-reference-preview-target");
+  // A thumbnail that still swaps looks like the one it replaced.
+  if (click) thumb.classList.add("mmc-asset-swap");
   thumb.setAttribute("role", "button");
   thumb.setAttribute("tabindex", "0");
   thumb.setAttribute("aria-label", title);
