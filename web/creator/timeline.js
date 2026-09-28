@@ -46,7 +46,7 @@ import {
  *  is 17 — but "short, medium, long" is what the user is choosing between
  *  either way, and the seconds beside it say what it costs. Keyed on the
  *  numbers, this read "Blend" for every LTX width. */
-const BLEND_NAMES = ["None", "Short", "Medium", "Long"];
+const BLEND_NAMES = ["None", "Short", "Medium", "Long", "Extra long", "Longest"];
 
 /** A seam blend's width as the user reads it: seconds, one decimal. At the
  *  piece's own rate — the frames were snapped to it. */
