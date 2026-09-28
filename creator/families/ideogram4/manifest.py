@@ -115,7 +115,9 @@ def manifest():
                       "row": dict(still.TURBO_ROW),
                       "default_quality": still.DEFAULT_TURBO_QUALITY,
                       "lora": True, "default_strength": still.DEFAULT_TURBO_STRENGTH,
-                      "checkpoint": False},
+                      "checkpoint": False,
+                      # The LoRA names a headless render takes for it (`creator/headless.py`).
+                      "hints": {"family": r"ideogram|turbotime"}},
         },
         "prompt": {
             # Written as prose, no reference conditioning of any kind; the

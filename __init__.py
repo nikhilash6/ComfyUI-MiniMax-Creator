@@ -24,6 +24,7 @@ from .creator.routes import lift  # noqa: F401  (registers /continuity/lift)
 from .creator.routes import neural  # noqa: F401  (registers /continuity/neural)
 from .creator.routes import plate  # noqa: F401  (registers /continuity/plate)
 from .creator.routes import refmod  # noqa: F401  (registers /continuity/refmod)
+from .creator.routes import render  # noqa: F401  (registers /continuity/render)
 from .creator.routes import reveal  # noqa: F401  (registers /continuity/reveal)
 from .creator.routes import upscale  # noqa: F401  (registers /continuity/upscale)
 

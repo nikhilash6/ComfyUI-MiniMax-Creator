@@ -110,7 +110,9 @@ def manifest():
                       "row": dict(still.KREA_TURBO),
                       "default_quality": still.DEFAULT_TURBO_QUALITY,
                       "lora": True, "default_strength": 1.0,
-                      "checkpoint": True},
+                      "checkpoint": True,
+                      # The LoRA names a headless render takes for it (`creator/headless.py`).
+                      "hints": {"family": r"krea"}},
             # What a reference render needs beyond the images: an adapter in the
             # stack, and the layout that adapter was trained on.
             # References, the adapter that reads them, and the layout that

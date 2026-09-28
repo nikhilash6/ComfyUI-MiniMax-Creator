@@ -209,6 +209,11 @@ TURBO = {
     "steps": {"draft": 4, "medium": 6, "good": 8},
     "default_quality": "medium",
     "row": {"sampler_name": "euler", "scheduler": "beta"},
+    # What a distill file of this family is called, for a render with no
+    # browser to pick one (`creator/headless.py`): the family's names, and
+    # each checkpoint's own, because an FL2V distill is wrong on Ref2V weights.
+    "hints": {"family": r"h3|minimax|hailuo",
+              "checkpoints": {"fl2va": r"fl2v", "ref2va": r"ref2v"}},
     "reset": {key: sampling.DEFAULTS[key]
               for key in ("steps", "sampler_name", "scheduler",
                           "shift_video", "shift_audio")},

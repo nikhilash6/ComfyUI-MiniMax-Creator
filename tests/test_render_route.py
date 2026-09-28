@@ -1,0 +1,144 @@
+"""`/continuity/render` builds what the node would queue, from a script's request.
+
+    COMFYUI_PATH=~/ComfyUI <comfy-venv>/bin/python3 tests/test_render_route.py
+
+The turbo arithmetic is `tests/test_headless.py`'s. This is the joining: that a
+request of a family, a prompt and a picture becomes a one-node prompt for the
+right node over this machine's picks, that `fast` throws the distill for the
+checkpoint the dry run actually routed to, and that everything a script can get
+wrong comes back as a sentence rather than a queued render. Nothing is queued
+and no model folder has to hold a file: the listing, the picks and the LoRA
+names are stood in.
+
+Skips itself with a message if ComfyUI cannot be imported.
+"""
+
+import asyncio
+import importlib
+import json
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PACKAGE = os.path.basename(ROOT)
+
+COMFY = os.environ.get("COMFYUI_PATH", os.path.expanduser("~/ComfyUI"))
+BASE = os.environ.get("COMFYUI_BASE", COMFY)
+
+
+def _boot():
+    sys.path.insert(0, COMFY)
+    sys.argv = ["main.py", "--base-directory", BASE]
+    import nodes
+    import server
+
+    loop = asyncio.new_event_loop()
+    try:
+        from app.assets.manager import default_asset_manager
+        server.PromptServer(loop, default_asset_manager())
+    except (ImportError, TypeError):
+        server.PromptServer(loop)
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(nodes.init_extra_nodes(init_custom_nodes=False))
+
+    sys.path.insert(0, os.path.dirname(ROOT))
+
+
+try:
+    _boot()
+except Exception as exc:  # noqa: BLE001
+    print(f"skipped: ComfyUI not importable ({type(exc).__name__}: {exc})")
+    sys.exit(0)
+
+importlib.import_module(PACKAGE)
+route = importlib.import_module(f"{PACKAGE}.creator.routes.render")
+chat = importlib.import_module(f"{PACKAGE}.creator.chat")
+headless = importlib.import_module(f"{PACKAGE}.creator.headless")
+
+from harness import FAILURES, check, passed  # noqa: E402
+
+FL2V = "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy_resized_avg_rank_21_bf16.safetensors"
+REF8 = "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors"
+FILES = {
+    "diffusion_models": ["h3_fl2va.safetensors", "h3_ref2va.safetensors", "krea2_raw.safetensors",
+                         "krea2_turbo.safetensors"],
+    "text_encoders": ["qwen3.safetensors", "qwen3vl_4b.safetensors"],
+    "vae": ["video_vae.safetensors", "audio_vae.safetensors", "qwen_image_vae.safetensors"],
+}
+STORED = {"h3": {"fl2va": "h3_fl2va.safetensors", "ref2va": "h3_ref2va.safetensors",
+                 "clip": "qwen3.safetensors", "vae": "video_vae.safetensors",
+                 "audio_vae": "audio_vae.safetensors"},
+          "krea2": {"model": "krea2_raw.safetensors", "turbo_model": "krea2_turbo.safetensors",
+                    "clip": "qwen3vl_4b.safetensors", "vae": "qwen_image_vae.safetensors"}}
+
+route.core_models.available = lambda: {"by_folder": FILES, "files": {}, "installed": {}}
+route.settings.load = lambda: {"weights": STORED}
+route.server_routes._lora_names = lambda: [FL2V, REF8, "anna.safetensors"]
+# A picture's size is read off disk by the dry run; there is no disk here.
+route.server_routes.media.image_size = lambda filename, crop=None: (1024, 768)
+
+
+def render(**body):
+    try:
+        return route._render(body)
+    except (headless.HeadlessError, chat.ActionError) as problem:
+        return {"problem": str(problem)}
+
+
+def inputs(built):
+    node = built["prompt"][chat.NODE]
+    field = "creator_data" if node["class_type"] == "MiniMaxH3Creator" else "prestage_data"
+    return node["class_type"], node["inputs"], json.loads(node["inputs"][field])
+
+
+built = render(family="h3", prompt="a cat stretches on a sunny windowsill", seed=7)
+if "problem" in built:
+    FAILURES.append(f"a text-only H3 render was refused: {built['problem']}")
+else:
+    kind, widgets, blob = inputs(built)
+    check("a clip is the Creator, seeded as asked", (kind, widgets["seed"]), ("MiniMaxH3Creator", 7))
+    check("over this machine's picks", blob["models"]["clip"], "qwen3.safetensors")
+    check("fast by default: the FL2V distill, on the checkpoint a text render routes to",
+          [(e["name"], e["modes"]) for e in blob["loras"]], [(FL2V, ["fl2va"])])
+    check("and the switch's row is on the blob, where it beats the widgets",
+          (blob["sampling"]["steps"], blob["sampling"]["sampler_name"]),
+          (headless.turbo_of(route.manifest.describe("h3"))["steps"]["medium"], "euler"))
+    check("the answer says it was turbo", built["speed"]["turbo"]["loras"], [FL2V])
+
+built = render(family="h3", prompt="@pic-1 walks through a garden",
+               pictures=[{"filename": "cat.png", "as": "ref"}], quality="good")
+if "problem" in built:
+    FAILURES.append(f"a reference H3 render was refused: {built['problem']}")
+else:
+    _, _, blob = inputs(built)
+    check("a reference render takes the Ref2V distill for the quality's step count",
+          [(e["name"], e["modes"]) for e in blob["loras"]], [(REF8, ["ref2va"])])
+    check("with the picture on the card as a reference",
+          [(a["handle"], a["role"], a["filename"]) for a in blob["segments"][-1]["assets"]],
+          [("pic-1", "reference", "cat.png")])
+
+built = render(family="h3", prompt="a cat", fast=False)
+_, _, blob = inputs(built)
+check("fast: false is the native row, said so", (blob["loras"], built["speed"]), ([], "native"))
+
+built = render(family="krea2", prompt="a tabby cat, studio portrait", aspect="4:5")
+if "problem" in built:
+    FAILURES.append(f"a Krea still was refused: {built['problem']}")
+else:
+    kind, _, blob = inputs(built)
+    check("an image family is a still on the PreStage, on its turbo checkpoint",
+          (kind, blob["arch"], blob["turbo"]["krea2"]["on"], blob["turbo"]["krea2"]["lora"]),
+          ("MiniMaxH3PreStage", "krea2", True, None))
+
+check("an unknown family is refused with the ones there are",
+      "h3" in render(family="sora", prompt="x").get("problem", ""), True)
+check("a still on H3 is pointed at the image families",
+      "krea2" in render(family="h3", prompt="x", still=True).get("problem", ""), True)
+check("a citation of a picture nobody sent is refused",
+      "not in the ledger" in render(family="h3", prompt="@pic-2 runs").get("problem", ""), True)
+
+route.server_routes._lora_names = lambda: []
+check("fast with no distill on the machine refuses rather than rendering slow",
+      "fast: false" in render(family="h3", prompt="a cat").get("problem", ""), True)
+
+passed("a script's render request builds the node's own prompt")

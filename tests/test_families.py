@@ -415,7 +415,8 @@ check("krea2 turbo capability carries the presets",
       krea["capabilities"]["turbo"],
       {"steps": k2.TURBO_STEPS, "row": k2.KREA_TURBO,
        "default_quality": k2.DEFAULT_TURBO_QUALITY,
-       "lora": True, "default_strength": 1.0, "checkpoint": True})
+       "lora": True, "default_strength": 1.0, "checkpoint": True,
+       "hints": {"family": "krea"}})
 check("krea2 declares both ways to be fast — the distilled file and the LoRA",
       (krea["capabilities"]["turbo"]["checkpoint"],
        krea["capabilities"]["turbo"]["lora"]), (True, True))
@@ -497,7 +498,8 @@ check("qwen21 turbo is a LoRA and only a LoRA — there is no distilled file",
       qwen21["capabilities"]["turbo"],
       {"steps": q21.TURBO_STEPS, "row": q21.TURBO_ROW,
        "default_quality": q21.DEFAULT_TURBO_QUALITY,
-       "lora": True, "default_strength": 1.0, "checkpoint": False})
+       "lora": True, "default_strength": 1.0, "checkpoint": False,
+       "hints": qwen21["capabilities"]["turbo"]["hints"]})
 check("qwen21 references are native and the first can be the one edited",
       (qwen21["capabilities"]["refs"]["methods"],
        qwen21["capabilities"]["refs"]["needs_lora"],

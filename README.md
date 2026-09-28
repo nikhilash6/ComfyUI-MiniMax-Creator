@@ -117,6 +117,21 @@ under either name. If you already have both, delete one and restart. Your
 presets, settings, favourites and LoRA memory are in ComfyUI's `user/`
 directory, not in the pack folder.
 
+## From a script or a coding agent
+
+The pack ships a command-line client that renders on a running ComfyUI with no
+browser. It picks the weights and the turbo settings itself and downloads the
+result:
+
+```
+python3 cli/render.py families
+python3 cli/render.py h3 "a cat stretches on a sunny windowsill"
+```
+
+`python3 cli/render.py --help` covers the options, and
+[docs/headless.md](docs/headless.md) covers the HTTP API underneath. Point
+Claude Code or any other agent at it instead of letting it write workflow JSON.
+
 ## Documentation
 
 - [Getting started](docs/getting-started.md)
@@ -125,6 +140,7 @@ directory, not in the pack folder.
 - [Timelines](docs/timeline.md) - pieces with more than one shot
 - [Model families](docs/families.md) - what each model can do
 - [Tools](docs/tools.md) - chat, ControlNet, upscaling, presets, LoRAs
+- [Scripts and agents](docs/headless.md) - rendering from a shell or a coding agent
 - [FAQ and troubleshooting](docs/faq.md)
 - [Changelog](CHANGELOG.md) - what changed, release by release
 

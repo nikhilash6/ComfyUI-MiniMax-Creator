@@ -102,7 +102,9 @@ def manifest():
                       "row": dict(still.TURBO_ROW),
                       "default_quality": still.DEFAULT_TURBO_QUALITY,
                       "lora": True, "default_strength": 1.0,
-                      "checkpoint": False},
+                      "checkpoint": False,
+                      # The LoRA names a headless render takes for it (`creator/headless.py`).
+                      "hints": {"family": r"qwen.*edit"}},
             # References with no adapter and no layout to pick: the base weights
             # were post-trained to read them, and core's detection gives these
             # files the reference method they were trained with. `edits_first`
