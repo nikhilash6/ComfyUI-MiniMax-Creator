@@ -97,13 +97,8 @@ skills:
 cp -r ComfyUI/custom_nodes/ComfyUI-Continuity/skills/continuity-render ~/.claude/skills/
 ```
 
-After that, "render a clip of a cat with H3" is enough. If your ComfyUI is not
-on `127.0.0.1:8188`, give the agent its address once and for all in Claude
-Code's settings (`~/.claude/settings.json`), so no session has to ask:
-
-```json
-{"env": {"COMFY_URL": "http://192.168.1.20:8188"}}
-``` Other agents can be
+After that, "render a clip of a cat with H3" is enough. The agent asks you which ComfyUI to render on
+before its first render. Other agents can be
 pointed at this page or at `python3 skills/continuity-render/render.py --help`. Without the skill, a
 line in your project's `CLAUDE.md` does most of the job:
 
