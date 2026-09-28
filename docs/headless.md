@@ -88,9 +88,18 @@ output folder like any other.
 
 ## For coding agents
 
-Point your agent at this page, or at `python3 cli/render.py --help`, which says
-the same thing more briefly. For Claude Code, a line in your project's
-`CLAUDE.md` is enough:
+The pack ships a Claude Code skill that teaches an agent this whole page:
+finding the client, checking the server, rendering, and what to do when a render
+is refused. Install it once by copying (or linking) the folder into your
+skills:
+
+```
+cp -r ComfyUI/custom_nodes/ComfyUI-Continuity/skills/continuity-render ~/.claude/skills/
+```
+
+After that, "render a clip of a cat with H3" is enough. Other agents can be
+pointed at this page or at `python3 cli/render.py --help`. Without the skill, a
+line in your project's `CLAUDE.md` does most of the job:
 
 ```
 To render with ComfyUI, use `python3 <path-to-pack>/cli/render.py` (see its --help).

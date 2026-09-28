@@ -129,8 +129,9 @@ python3 cli/render.py h3 "a cat stretches on a sunny windowsill"
 ```
 
 `python3 cli/render.py --help` covers the options, and
-[docs/headless.md](docs/headless.md) covers the HTTP API underneath. Point
-Claude Code or any other agent at it instead of letting it write workflow JSON.
+[docs/headless.md](docs/headless.md) covers the HTTP API underneath. For
+Claude Code, copy `skills/continuity-render` into `~/.claude/skills/` and ask
+for a render in plain words.
 
 ## Documentation
 
