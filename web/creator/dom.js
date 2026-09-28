@@ -359,9 +359,40 @@ export function swappable(thumb, { title, onclick }) {
   return thumb;
 }
 
+// A section can be folded by keyboard without an outside pointer press.
+// Remember ownership while the anchor is mounted (a refresh may replace it),
+// and use the popover's own disposer rather than removing another UI's nodes.
+const popoverOwners = new WeakMap();
+const popoverClosers = new Map();
+
+export function closeOwnedPopovers(root) {
+  if (!root) return;
+  const closing = new Set();
+  for (const node of popoverClosers.keys()) {
+    if (!node.isConnected) { popoverClosers.delete(node); continue; }
+    const owner = popoverOwners.get(node);
+    if (owner && (root.contains(owner.anchor)
+        || (owner.section && (owner.section === root || root.contains(owner.section))))) closing.add(node);
+  }
+  // A picker opened from a popover is portaled to body too. It belongs to its
+  // parent popover, not whichever unrelated UI happens to be behind it.
+  let changed;
+  do {
+    changed = false;
+    for (const node of popoverClosers.keys()) {
+      if (!closing.has(node) && closing.has(popoverOwners.get(node)?.parent)) {
+        closing.add(node); changed = true;
+      }
+    }
+  } while (changed);
+  for (const node of [...closing].reverse()) popoverClosers.get(node)?.();
+}
+
 /** Close-on-outside-click / Escape, shared by every popover. */
 export function dismissable(node, onClose) {
   floatAbove(node);
+  let closed = false;
+  let pending;
   const away = (event) => {
     if (node.contains(event.target)) return;
     // A popover opened from this one — a choice list under a row of the gear
@@ -379,13 +410,18 @@ export function dismissable(node, onClose) {
     if (event.key === "Escape" && node.dataset.holdEscape !== "1") { event.stopPropagation(); close(); }
   };
   function close() {
+    if (closed) return;
+    closed = true;
+    clearTimeout(pending);
+    popoverClosers.delete(node);
     document.removeEventListener("pointerdown", away, true);
     document.removeEventListener("keydown", key, true);
     node.remove();
     onClose?.();
   }
   // Deferred so the click that opened the popover does not immediately shut it.
-  setTimeout(() => {
+  popoverClosers.set(node, close);
+  pending = setTimeout(() => {
     document.addEventListener("pointerdown", away, true);
     document.addEventListener("keydown", key, true);
   }, 0);
@@ -428,6 +464,11 @@ export function mountOverlay(overlay, onEscape) {
 
 /** Anchor a popover to a pill, kept inside the viewport. */
 export function placeNear(popover, anchor, { above = true } = {}) {
+  popoverOwners.set(popover, {
+    anchor,
+    section: anchor.closest?.(".mmc-tl-section-body") ?? null,
+    parent: anchor.closest?.(".mmc-pop") ?? null,
+  });
   // The pill this hangs off may be gone: a popover whose rows commit — the
   // face pass's, the two-pass section's, the guide pass's switch — re-renders
   // the node under itself, and the button that was clicked is replaced by an

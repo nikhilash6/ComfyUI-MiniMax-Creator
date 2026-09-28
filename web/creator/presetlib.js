@@ -272,7 +272,13 @@ class PresetLibrary {
     // The chips go in the picker's scrolling strip: a library filed into more
     // folders than fit scrolls sideways rather than growing rows downwards and
     // pushing the grid off the modal.
-    this.shelfRow = el("div", { class: "mmc-shelf-strip" });
+    this.shelfRow = el("div", {
+      class: "mmc-shelf-strip mmc-preset-shelf-strip",
+      onkeydown: (event) => this.keyShelves(event),
+    });
+    // CSS overflow alone does not turn a mouse's vertical wheel sideways.
+    // Keep trackpad horizontal gestures native; cancel only a wheel we move.
+    this.shelfRow.addEventListener("wheel", (event) => this.scrollShelves(event), { passive: false });
     this.bar = el("div", { class: "mmc-modal-bar" });
     this.renderBar();
 
@@ -766,6 +772,42 @@ class PresetLibrary {
       .map((row) => row.folder))].sort();
   }
 
+  scrollShelves(event) {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.deltaX || !event.deltaY) return;
+    const strip = this.shelfRow;
+    const room = strip.scrollWidth - strip.clientWidth;
+    if (room <= 0) return;
+    const style = getComputedStyle(strip);
+    const rtl = style.direction === "rtl";
+    const unit = event.deltaMode === 1 ? (parseFloat(style.lineHeight) || 16)
+      : event.deltaMode === 2 ? strip.clientWidth : 1;
+    const delta = event.deltaY * unit * (rtl ? -1 : 1);
+    const next = Math.max(rtl ? -room : 0, Math.min(rtl ? 0 : room, strip.scrollLeft + delta));
+    if (next === strip.scrollLeft) return;
+    // Repeated wheel events must accumulate rather than restart CSS smoothing.
+    strip.scrollTo({ left: next, behavior: "instant" });
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  keyShelves(event) {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    const strip = this.shelfRow;
+    const focused = event.target.closest?.("button.mmc-shelf");
+    if (!focused || focused.parentElement !== strip) return;
+    const chips = [...strip.children];
+    const index = chips.indexOf(focused);
+    const step = (event.key === "ArrowRight" ? 1 : -1) * (getComputedStyle(strip).direction === "rtl" ? -1 : 1);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? chips.length - 1
+      : Math.max(0, Math.min(chips.length - 1, index + step));
+    event.preventDefault();
+    event.stopPropagation();
+    chips[next].focus({ preventScroll: true });
+    chips[next].scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    // Browsing does not apply a filter. Enter/Space retain button activation.
+  }
+
   renderShelves() {
     const shelves = [
       [SHELF_ALL, t("All")],
@@ -779,13 +821,21 @@ class PresetLibrary {
     // scroll is kept because a rebuild resets it and the chip you just
     // pressed is usually the one scrolled into view.
     const scrolled = this.shelfRow.scrollLeft;
+    // A filter click replaces every button. Restore its keyboard focus too,
+    // so Enter followed by another arrow does not fall out of the strip.
+    const active = document.activeElement;
+    const focusedKey = active?.parentElement === this.shelfRow ? active.dataset.shelf : null;
     this.shelfRow.replaceChildren(...shelves.map(([key, label]) => el("button", {
       class: "mmc-shelf",
+      "data-shelf": key,
       "aria-pressed": key === this.shelf,
       text: label,
       onclick: () => { this.shelf = key; this.renderShelves(); this.renderGrid(); },
     })));
-    this.shelfRow.scrollLeft = scrolled;
+    this.shelfRow.scrollTo({ left: scrolled, behavior: "instant" });
+    if (focusedKey != null) {
+      [...this.shelfRow.children].find((chip) => chip.dataset.shelf === focusedKey)?.focus({ preventScroll: true });
+    }
   }
 
   visible() {

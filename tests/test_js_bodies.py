@@ -3223,8 +3223,7 @@ finally:
 if result.returncode != 0:
     # The whole point: a module-level throw takes the extension with it, and
     # this is where that shows up as a failure rather than as a dead canvas.
-    print("the frontend did not load:\n" + (result.stderr.strip() or result.stdout.strip()))
-    sys.exit(1)
+    harness.died("the frontend did not load:\n" + (result.stderr.strip() or result.stdout.strip()))
 
 report = json.loads(result.stdout.strip().splitlines()[-1])
 from harness import FAILURES, check, passed

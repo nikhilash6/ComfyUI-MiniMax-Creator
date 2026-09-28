@@ -50,8 +50,31 @@ export const css = `
 /* The two Context-IR audio fields, side by side under the prompt. They wrap to
    one column when the modal is too narrow to give each a readable measure. */
 .mmc-tl-audio {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px;
 }
+/* Presentation-only folding; the editors stay mounted. Action buttons are
+   siblings of the wide toggle so their click cannot collapse the section. */
+.mmc-tl-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 0 0 auto; }
+.mmc-tl-section-head { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.mmc-tl-section-toggle {
+  display: flex; flex: 1 1 220px; min-width: 0; gap: 8px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--mmc-line); border-radius: 7px;
+  background: var(--mmc-surface); color: var(--mmc-text); font-family: inherit;
+  text-align: left; cursor: pointer;
+}
+.mmc-tl-section-toggle:hover { background: var(--mmc-surface-2); border-color: var(--mmc-line-2); }
+.mmc-tl-section-toggle:active { background: var(--mmc-line); }
+.mmc-tl-section-toggle:focus-visible { outline: 2px solid var(--mmc-accent); outline-offset: 2px; }
+.mmc-tl-section-arrow { flex: 0 0 12px; text-align: center; font-size: 15px; }
+.mmc-tl-section-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.mmc-tl-section-title { font-family: inherit; font-size: calc(13px * var(--mmc-type)); font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
+.mmc-tl-section-hint { font-size: calc(11px * var(--mmc-type)); font-weight: 400; color: var(--mmc-dim); word-break: normal; overflow-wrap: anywhere; }
+.mmc-tl-section-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 0 1 auto; min-width: 0; }
+.mmc-tl-section-actions:empty { display: none; }
+.mmc-tl-section-actions button { white-space: normal; }
+.mmc-tl-section-body { min-width: 0; }
+.mmc-tl-section-body[hidden], .mmc-tl-pool[hidden] { display: none; }
+.mmc-tl-section-warning .mmc-tl-section-hint { color: var(--mmc-warn); }
 .mmc-tl-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 /* Named for the field they become, not prettified: the value goes into the
    prompt under exactly this key, and someone comparing against MiniMax's guide
@@ -321,8 +344,14 @@ export const css = `
  * instead of each centring itself on a different height. */
 .mmc-tl-seam {
   width: 78px; box-sizing: border-box; padding: 47px 3px 19px;
-  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
 }
+/* A source/blend pair is one shared-options group; storyboard is independent.
+   Empty optional groups are never rendered, so they cannot leave ghost rules. */
+.mmc-tl-seam-group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.mmc-tl-seam-group + .mmc-tl-seam-group { border-top: 1px solid var(--mmc-line); padding-top: 8px; }
+.mmc-tl-seam-group > .mmc-tl-join { padding: 4px 2px; min-width: 0; overflow-wrap: anywhere; }
+.mmc-tl-seam-group > .mmc-tl-join:focus-visible { outline: 2px solid var(--mmc-accent); outline-offset: 1px; }
 /* The join inside a pass. Not the seam's two switches, because there is no seam
    to switch: what it shows is the cut time the description will carry, and what
    clicking it does is split the pass back apart. Narrow, and without the seam's

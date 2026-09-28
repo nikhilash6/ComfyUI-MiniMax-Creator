@@ -13,7 +13,8 @@ import { openRestyle } from "./restyle.js";
 import { CastShelf } from "./cast.js";
 import { castFamilies, keepAsMod } from "./refmod.js";
 import { clearButton } from "./clear.js";
-import { el, icon, mountOverlay, swappable } from "./dom.js";
+import { el, icon, mountOverlay, swappable, closeOwnedPopovers } from "./dom.js";
+import { createDisclosure } from "./disclosure.js";
 import { CreatorEditor, pickTakes, takesHelp } from "./editor.js";
 import { t } from "./i18n.js";
 import { openLoras, loraBlock, loraBase, settlePins } from "./loras.js";
@@ -47,6 +48,11 @@ import {
  *  either way, and the seconds beside it say what it costs. Keyed on the
  *  numbers, this read "Blend" for every LTX width. */
 const BLEND_NAMES = ["None", "Short", "Medium", "Long", "Extra long", "Longest"];
+
+// Functional groups, not inferred from button classes: source and blend share
+// a class but belong to the same optional group. Empty groups draw no divider.
+const seamGroup = (children) => children.length
+  ? el("div", { class: "mmc-tl-seam-group" }, children) : null;
 
 /** A seam blend's width as the user reads it: seconds, one decimal. At the
  *  piece's own rate — the frames were snapped to it. */
@@ -526,6 +532,7 @@ class Timeline {
     this.onCommit?.();
     this.renderPool();
     this.renderCast();
+    this.poolSection?.setOpen(true);
     return entry.handle;
   }
 
@@ -539,6 +546,12 @@ class Timeline {
   mount() {
     this.promptBox = this.globalPromptBox();
     this.promptBox.setValue(this.timeline.prompt ?? "");
+    this.promptSection = createDisclosure({
+      // Display label only. The serialized key remains `prompt`.
+      title: "global_prompt", content: this.promptBox.frame,
+      onBeforeCollapse: () => this.promptBox.closeMenu(),
+    });
+    this.promptBox.root.setAttribute("aria-labelledby", this.promptSection.titleId);
 
     // The two audio fields H3's own prompt format has, kept side by side and
     // shorter than the prompt: they are a few sentences each, and putting them
@@ -557,18 +570,22 @@ class Timeline {
                    + "Empty leaves it to the model; write N/A for none."),
     });
 
+    this.soundscapeSection = createDisclosure({ title: t("overall_soundscape"), content: this.soundscapeBox });
+    this.musicSection = createDisclosure({ title: t("non_diegetic_music"), content: this.musicBox });
+    this.soundscapeBox.setAttribute("aria-labelledby", this.soundscapeSection.titleId);
+    this.musicBox.setAttribute("aria-labelledby", this.musicSection.titleId);
     this.audioHost = el("div", { class: "mmc-tl-audio" }, [
-      el("label", { class: "mmc-tl-field" }, [
-        el("span", { class: "mmc-tl-field-name", text: t("overall_soundscape") }),
-        this.soundscapeBox,
-      ]),
-      el("label", { class: "mmc-tl-field" }, [
-        el("span", { class: "mmc-tl-field-name", text: t("non_diegetic_music") }),
-        this.musicBox,
-      ]),
+      this.soundscapeSection.root, this.musicSection.root,
     ]);
 
     this.poolHost = el("div", { class: "mmc-tl-pool" });
+    this.poolSection = createDisclosure({
+      title: t("Piece references"),
+      onBeforeCollapse: () => closeOwnedPopovers(this.poolSection.body),
+    });
+    this.poolWarning = el("div", { class: "mmc-tl-pool-bad", role: "status" });
+    // Errors stay visible even when the reference body is folded.
+    this.poolHost.append(this.poolSection.root, this.poolWarning);
     this.castHost = el("div", { class: "mmc-tl-cast" });
     this.barHost = el("div", { class: "mmc-tl-bar" });
     this.loraHost = el("div", { class: "mmc-tl-loras" });
@@ -596,7 +613,7 @@ class Timeline {
         el("button", { class: "mmc-close", text: "✕", title: t("Close"), onclick: () => this.close() }),
       ]),
       el("div", { class: "mmc-tl-body" }, [
-        this.promptBox.frame, this.audioHost, this.poolHost, this.castHost,
+        this.promptSection.root, this.audioHost, this.poolHost, this.castHost,
         this.barHost, this.loraHost, this.stripHost, this.sound.host,
       ]),
     ]);
@@ -713,29 +730,27 @@ class Timeline {
     // with them still on it would leave a queue-time refusal about references
     // nothing on screen mentions. See `S.overflow`, which says exactly that.
     const takesRefs = S.takesReferences(this.timeline);
-    if (!takesRefs && !assets.length) return this.poolHost.replaceChildren();
-    this.poolHost.replaceChildren(
-      el("div", { class: "mmc-tl-pool-head" }, [
-        el("span", { class: "mmc-tl-field-name", text: t("Piece references") }),
-        el("span", {
-          class: "mmc-tl-pool-hint",
-          text: takesRefs
-            ? t("Attached once. Cite the @handle in the global prompt to use it in every "
-              + "segment, or in a segment's own prompt to use it just there.")
-            : t("{family} reads no attached references — detach these, or put the piece "
-              + "back on a model that reads them.",
-                { family: S.familyOf(this.timeline).label }),
-        }),
-        ...(takesRefs ? [el("button", {
+    this.poolHost.hidden = !takesRefs && !assets.length;
+    if (this.poolHost.hidden) return;
+    this.poolSection.setText(t("Piece references"), takesRefs
+      ? t("Attached once. Cite the @handle in the global prompt to use it in every "
+        + "segment, or in a segment's own prompt to use it just there.")
+      : t("{family} reads no attached references — detach these, or put the piece "
+        + "back on a model that reads them.", { family: S.familyOf(this.timeline).label }));
+    this.poolSection.root.classList.toggle("mmc-tl-section-warning", !takesRefs);
+    this.poolAdd ??= el("button", {
+          type: "button",
           class: "mmc-ghost mmc-tl-pool-add",
           title: t("Attach a reference to the whole piece — a character sheet, a location, "
                + "a voice. Cite it with its @handle in every segment where it appears."),
           onclick: () => this.addPoolAssets(),
-        }, [el("span", { text: "+" }), el("span", { text: t("Add") })])] : []),
-      ]),
-      // What the last scissors press ran into — a missing matte model, mostly.
-      // Cleared by the next press that lands.
-      ...(this.poolError ? [el("div", { class: "mmc-tl-pool-bad", text: this.poolError })] : []),
+        }, [el("span", { text: "+" }), el("span", { text: t("Add") })]);
+    // Mount action once too: a background refresh must not steal its focus.
+    if (takesRefs && !this.poolAdd.isConnected) this.poolSection.setActions(this.poolAdd);
+    else if (!takesRefs) this.poolSection.setActions();
+    this.poolWarning.textContent = this.poolError || "";
+    this.poolWarning.hidden = !this.poolError;
+    this.poolSection.body.replaceChildren(
       ...(assets.length ? [el("div", { class: "mmc-assets" }, assets.map((a) => this.poolChip(a)))] : []),
     );
   }
@@ -968,12 +983,15 @@ class Timeline {
     // Pressing the name of whoever is already open shuts them — the press is
     // its own undo. Nothing to scroll to in that case: what was being pointed
     // at has just gone.
-    if (this.castShelf?.openMember(handle) !== "opened") return;
+    const forceOpen = !this.castShelf?.isExpanded();
+    if (this.castShelf?.openMember(handle, { forceOpen }) !== "opened") return;
+    this.castShelf.reveal();
     this.castHost.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   renderCast() {
     this.castShelf ??= new CastShelf({
+      disclosure: true,
       getCast: () => this.timeline.subjects ?? [],
       setCast: (list) => { this.timeline.subjects = list; },
       family: () => S.pieceFamily(this.timeline),
@@ -1189,6 +1207,7 @@ class Timeline {
     if (new RegExp(`@${handle}\\b`).test(current)) return;
     const joiner = current && !/\s$/.test(current) ? " " : "";
     this.setGlobalPrompt(`${current}${joiner}@${handle} `);
+    this.promptSection?.setOpen(true);
     this.commit();
   }
 
@@ -1200,6 +1219,7 @@ class Timeline {
     const current = this.timeline.prompt ?? "";
     const joiner = current && !/\s$/.test(current) ? " " : "";
     this.setGlobalPrompt(`${current}${joiner}@${asset.handle} `);
+    this.promptSection?.setOpen(true);
     this.commit();
   }
 
@@ -1234,6 +1254,7 @@ class Timeline {
       }
       this.timeline.assets.push(this.poolEntry(picked));
     }
+    if (chosen.length) this.poolSection?.setOpen(true);
     this.commit();
   }
 
@@ -1880,7 +1901,7 @@ class Timeline {
     const rules = rulesFor(S.pieceFamily(this.timeline));
 
     return el("div", { class: "mmc-tl-seam mmc-tl-seam-clip" }, [
-      el("button", {
+      seamGroup([el("button", {
         class: `mmc-tl-join${on ? " on" : ""}`,
         disabled: blocked ? true : undefined,
         title: blocked || (on
@@ -1889,8 +1910,8 @@ class Timeline {
           : t("Hard cut into this clip. Click to end segment {n} on the clip's first frame "
             + "instead, so the generated shot arrives where the footage begins.", { n: index })),
         onclick: blocked ? undefined : () => { clip.continue = !on; this.commit(); },
-      }, [el("span", { text: on ? "↝" : "✂" }), el("span", { text: on ? t("runs in") : t("cut") })]),
-      el("button", {
+      }, [el("span", { text: on ? "↝" : "✂" }), el("span", { text: on ? t("runs in") : t("cut") })])]),
+      seamGroup([el("button", {
         class: `mmc-tl-join mmc-tl-join-sound${sound ? " on" : ""}`,
         disabled: soundBlocked ? true : undefined,
         title: soundBlocked || (sound
@@ -1900,11 +1921,11 @@ class Timeline {
           : t("Segment {n} ends on its own sound and this clip starts on the footage's. "
             + "Click to carry the clip's opening back across the cut.", { n: index })),
         onclick: soundBlocked ? undefined : () => { clip.continue_audio = !sound; this.commit(); },
-      }, [icon("audio", 13), el("span", { text: sound ? t("sound") : t("silent seam") })]),
+      }, [icon("audio", 13), el("span", { text: sound ? t("sound") : t("silent seam") })])]),
       // The blend is spent by the segment *behind* the clip — those frames are
       // re-generated at its tail and trimmed off it — so its width is bounded
       // by that card's length and not by the clip's.
-      ...(on && S.maxClipFeather(this.timeline, index) > 1 ? [el("button", {
+      seamGroup(on && S.maxClipFeather(this.timeline, index) > 1 ? [el("button", {
         class: `mmc-tl-join mmc-tl-join-from${width > 1 ? " on" : ""}`,
         title: width > 1
           ? t("The clip's first {s} s are blended across the end of segment {n}, so its motion "
@@ -1968,7 +1989,7 @@ class Timeline {
     // cross a seam independently: a hard cut whose score keeps playing is as
     // ordinary as a match cut that resets the room tone.
     return el("div", { class: "mmc-tl-seam" }, [
-      el("button", {
+      seamGroup([el("button", {
         class: `mmc-tl-join${on ? " on" : ""}`,
         disabled: blocked ? true : undefined,
         title: blocked || (on
@@ -1977,8 +1998,8 @@ class Timeline {
           : t("Hard cut into segment {n}. Click to start it on segment {prev}'s last frame.",
               { n: index + 1, prev: index })),
         onclick: blocked ? undefined : () => { segment.continue = !on; this.commit(); },
-      }, [el("span", { text: on ? "↝" : "✂" }), el("span", { text: on ? t("continues") : t("cut") })]),
-      el("button", {
+      }, [el("span", { text: on ? "↝" : "✂" }), el("span", { text: on ? t("continues") : t("cut") })])]),
+      seamGroup([el("button", {
         class: `mmc-tl-join mmc-tl-join-sound${sound ? " on" : ""}`,
         disabled: soundBlocked ? true : undefined,
         title: soundBlocked || (sound
@@ -1988,10 +2009,11 @@ class Timeline {
             + "Click to carry the last {tail}s of segment {from}'s into it.",
               { n: index + 1, tail: this.timeline.audio_tail_s, from })),
         onclick: soundBlocked ? undefined : () => { segment.continue_audio = !sound; this.commit(); },
-      }, [icon("audio", 13), el("span", { text: sound ? t("sound") : t("silent seam") })]),
+      }, [icon("audio", 13), el("span", { text: sound ? t("sound") : t("silent seam") })])]),
       // Where the seam inherits from. Only on a live seam, and only once there
       // is a choice to make: the second pass can only continue from the first,
       // and a one-option picker would only raise the question it answers.
+      seamGroup([
       ...((on || sound) && this.earlierPasses(index).length >= 2 ? [el("button", {
         class: `mmc-tl-join mmc-tl-join-from${from !== index ? " on" : ""}`,
         title: t("What continues across this seam is segment {from}'s last {what}. "
@@ -2039,11 +2061,12 @@ class Timeline {
           ? t("blend {s} s", { s: blendSeconds(width, rules) }) : t("no blend"),
       })]);
       })()] : []),
+      ]),
       // What this card is shown of the strip before it. Beside the seam's
       // chips because it is the same kind of fact — what reaches this shot
       // from the shots before it — and unlike them it is there on a hard cut
       // too, which is where a sheet earns most: nothing else crosses one.
-      ...(S.canDo(this.timeline, "storyboard") ? [(() => {
+      seamGroup(S.canDo(this.timeline, "storyboard") ? [(() => {
         const sheet = S.storyboardSheet(this.timeline, index);
         const shown = sheet.length > 0;
         return el("button", {

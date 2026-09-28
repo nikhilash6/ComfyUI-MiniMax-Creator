@@ -23,6 +23,7 @@ class Node {
     };
     this.tagName = tag; this.children = []; this.attrs = {};
     this.className = ""; this.textContent = ""; this.listeners = {};
+    this.scrollLeft = 0; this.scrollTop = 0;
     // Backed by className, not stubbed. Half the pack says what state a thing is
     // in by putting a class on it and the other half reads that class back —
     // the fullscreen shell's view and its summoned cast shelf both do — and a
@@ -204,6 +205,16 @@ class Node {
     return { top: 0, left: 0, width: 100, height: 100, bottom: 0, right: 0, ...own };
   }
   scrollIntoView() {}
+  // No layout or animation is modelled, but scrollTo must retain the requested
+  // position just like assigning scrollLeft/scrollTop. A mounting smoke test
+  // can then restore a shelf's offset without faking the browser's wheel API;
+  // real overflow/clamping belongs to the isolated browser layout tests.
+  scrollTo(options = {}, top) {
+    const point = typeof options === "number" ? { left: options, top } : options;
+    if (point.left !== undefined) this.scrollLeft = Number.isFinite(Number(point.left)) ? Number(point.left) : 0;
+    if (point.top !== undefined) this.scrollTop = Number.isFinite(Number(point.top)) ? Number(point.top) : 0;
+  }
+  get parentElement() { return this.parent?.nodeType === 1 ? this.parent : null; }
   get firstChild() { return this.children[0] ?? null; }
   get lastChild() { return this.children[this.children.length - 1] ?? null; }
   hasChildNodes() { return this.children.length > 0; }
