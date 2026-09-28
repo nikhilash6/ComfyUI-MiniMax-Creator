@@ -6,6 +6,6 @@
 - [Timelines](timeline.md) - pieces with more than one shot, seams, locked takes
 - [Model families](families.md) - what each of the six models can do, and their quirks
 - [Tools](tools.md) - pre-stage, ControlNet bench, upscale bench, contact sheet, presets, LoRAs
-- [Scripts and agents](headless.md) - rendering from a shell or a coding agent with `cli/render.py`
+- [Scripts and agents](headless.md) - rendering from a shell or a coding agent with `skills/continuity-render/render.py`
 - [FAQ and troubleshooting](faq.md) - settings, common errors, and what they mean
 - [Changelog](../CHANGELOG.md) - what changed, release by release

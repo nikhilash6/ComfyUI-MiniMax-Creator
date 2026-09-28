@@ -1,33 +1,33 @@
 ---
 name: continuity-render
-description: Render videos and pictures on a ComfyUI server that has the Continuity node pack (MiniMax H3, LTX 2.5, Krea 2, Ideogram 4, Qwen Image, Flux 2 Klein) with one command, cli/render.py. Use whenever the user asks to render, generate or make a clip, video, shot, still, picture or image "on ComfyUI", "on the lab", "with H3/Hailuo/MiniMax", "with LTX", "with Krea" and so on, or to test a render. Never hand-write ComfyUI workflow JSON or POST to /prompt for these models; this client builds the render correctly.
+description: Render videos and pictures on a ComfyUI server that has the Continuity node pack (MiniMax H3, LTX 2.5, Krea 2, Ideogram 4, Qwen Image, Flux 2 Klein) with one command, the render.py bundled in this skill. Use whenever the user asks to render, generate or make a clip, video, shot, still, picture or image "on ComfyUI", "on the lab", "with H3/Hailuo/MiniMax", "with LTX", "with Krea" and so on, or to test a render. Never hand-write ComfyUI workflow JSON or POST to /prompt for these models; this client builds the render correctly.
 ---
 
 # Rendering with Continuity
 
-The Continuity pack ships a client, `cli/render.py`, that renders on a running
+The Continuity pack ships a client, `render.py` (bundled here), that renders on a running
 ComfyUI over HTTP. The server builds the render from a family, a prompt and
 optional pictures: it picks every model file, turns on the turbo settings and
 checks the request before anything runs. You don't build workflows, pick
 filenames or set sampler values.
 
-## 1. Find the client and the server
+## 1. The client and the server
 
-- **Client:** `cli/render.py` inside the pack, at
-  `<ComfyUI>/custom_nodes/<pack folder>/cli/render.py` (the folder is usually
-  `ComfyUI-Continuity`). Find it with
-  `find ~ -path '*custom_nodes/*/cli/render.py' 2>/dev/null | head`. The file
-  is self-contained (Python 3.9+, standard library only), so a copy works from
-  any machine. If none is on this machine, download that one file from
-  https://github.com/roadmaus/ComfyUI-Continuity (`cli/render.py`).
-- **Server:** `--url` or `$COMFY_URL`, default `http://127.0.0.1:8188`. If the
-  user names a machine you don't have a URL for, ask. If it is reached through
-  an SSH tunnel, open the tunnel first.
+- **Client:** `render.py` in this skill's own folder (the base directory given
+  when the skill loads). Run it as `python3 <skill dir>/render.py`. **Do not
+  search the filesystem for it.** It is self-contained (Python 3.9+, standard
+  library only).
+- **Server:** in this order: a URL the user gave, then one in project
+  instructions or memory, then `$COMFY_URL`, then the default
+  `http://127.0.0.1:8188`. Pass a URL with `--url`. Don't probe ports or
+  scan for servers. If `families` cannot reach the chosen one, say so and ask
+  for the address. If it is reached through an SSH tunnel, open the tunnel
+  first.
 
 Always start with:
 
 ```
-python3 cli/render.py families
+python3 <skill dir>/render.py families
 ```
 
 This confirms that the server is reachable and has the pack. It lists which
@@ -38,9 +38,9 @@ too old: tell the user rather than working around it.
 ## 2. Render
 
 ```
-python3 cli/render.py h3 "a fluffy orange cat stretches on a sunny windowsill" --seconds 5
-python3 cli/render.py krea2 "a tabby cat, studio portrait" --aspect 4:5
-python3 cli/render.py h3 "@pic-1 turns and walks out of frame" --image cat.png
+python3 <skill dir>/render.py h3 "a fluffy orange cat stretches on a sunny windowsill" --seconds 5
+python3 <skill dir>/render.py krea2 "a tabby cat, studio portrait" --aspect 4:5
+python3 <skill dir>/render.py h3 "@pic-1 turns and walks out of frame" --image cat.png
 ```
 
 - **The first argument is the family id** from `families`. Video families

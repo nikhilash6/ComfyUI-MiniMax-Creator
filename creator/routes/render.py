@@ -4,8 +4,8 @@ The front door for anything that is not a browser — a shell, a CI job, a codin
 agent told "make a clip of a cat on the lab". Before it, such a caller had to
 write the Creator's `creator_data` blob by hand, guess filenames for every weight
 slot, list all thirteen sampler widgets in ComfyUI's API format and throw the
-turbo switch itself; each one reinvented that, differently. `cli/render.py`
-is the client (shipped, unlike `tools/`), and `docs/headless.md` says how to use it.
+turbo switch itself; each one reinvented that, differently. `skills/continuity-render/render.py`
+is the client (shipped, unlike `tools/`, and inside the Claude Code skill so an agent never has to look for it), and `docs/headless.md` says how to use it.
 
 **Nothing here is a second builder.** The chat room already turns "this prompt,
 these pictures, this family" into a validated one-node prompt, over this

@@ -124,11 +124,11 @@ browser. It picks the weights and the turbo settings itself and downloads the
 result:
 
 ```
-python3 cli/render.py families
-python3 cli/render.py h3 "a cat stretches on a sunny windowsill"
+python3 skills/continuity-render/render.py families
+python3 skills/continuity-render/render.py h3 "a cat stretches on a sunny windowsill"
 ```
 
-`python3 cli/render.py --help` covers the options, and
+`python3 skills/continuity-render/render.py --help` covers the options, and
 [docs/headless.md](docs/headless.md) covers the HTTP API underneath. For
 Claude Code, copy `skills/continuity-render` into `~/.claude/skills/` and ask
 for a render in plain words.

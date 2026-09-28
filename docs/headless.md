@@ -2,7 +2,7 @@
 
 Continuity can be driven without opening ComfyUI's page: from a shell, a CI
 job, or a coding agent like Claude Code that you ask to "make a clip of a cat".
-The pack ships a small command-line client, `cli/render.py`, that talks to a
+The pack ships a small command-line client, `skills/continuity-render/render.py`, that talks to a
 running ComfyUI over HTTP. It needs only Python 3.9 or newer (no packages to
 install) and runs on the ComfyUI machine or on any machine that can reach its
 port.
@@ -12,8 +12,8 @@ port.
 From the pack's folder (`ComfyUI/custom_nodes/ComfyUI-Continuity`):
 
 ```
-python3 cli/render.py families
-python3 cli/render.py h3 "a cat stretches on a sunny windowsill"
+python3 skills/continuity-render/render.py families
+python3 skills/continuity-render/render.py h3 "a cat stretches on a sunny windowsill"
 ```
 
 The first command lists every model family, whether its files are installed,
@@ -26,7 +26,7 @@ The client talks to `http://127.0.0.1:8188` unless you set `--url` or the
 
 ```
 export COMFY_URL=http://192.168.1.20:8188
-python3 cli/render.py krea2 "a tabby cat, studio portrait" --aspect 4:5
+python3 skills/continuity-render/render.py krea2 "a tabby cat, studio portrait" --aspect 4:5
 ```
 
 ## What it decides for you
@@ -53,8 +53,8 @@ without saying so.
 ## Attaching pictures
 
 ```
-python3 cli/render.py h3 "@pic-1 turns and walks out of frame" --image cat.png
-python3 cli/render.py h3 "@pic-1 and @pic-2 meet in a park" --image a.png:ref --image b.png:ref
+python3 skills/continuity-render/render.py h3 "@pic-1 turns and walks out of frame" --image cat.png
+python3 skills/continuity-render/render.py h3 "@pic-1 and @pic-2 meet in a park" --image a.png:ref --image b.png:ref
 ```
 
 `--image PATH[:AS]` is repeatable. A local file is uploaded to ComfyUI's input
@@ -97,12 +97,18 @@ skills:
 cp -r ComfyUI/custom_nodes/ComfyUI-Continuity/skills/continuity-render ~/.claude/skills/
 ```
 
-After that, "render a clip of a cat with H3" is enough. Other agents can be
-pointed at this page or at `python3 cli/render.py --help`. Without the skill, a
+After that, "render a clip of a cat with H3" is enough. If your ComfyUI is not
+on `127.0.0.1:8188`, give the agent its address once and for all in Claude
+Code's settings (`~/.claude/settings.json`), so no session has to ask:
+
+```json
+{"env": {"COMFY_URL": "http://192.168.1.20:8188"}}
+``` Other agents can be
+pointed at this page or at `python3 skills/continuity-render/render.py --help`. Without the skill, a
 line in your project's `CLAUDE.md` does most of the job:
 
 ```
-To render with ComfyUI, use `python3 <path-to-pack>/cli/render.py` (see its --help).
+To render with ComfyUI, use `python3 <path-to-pack>/skills/continuity-render/render.py` (see its --help).
 Run `families` first; never write ComfyUI workflow JSON by hand.
 ```
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Render a clip or a picture on a running ComfyUI with this pack, from a shell.
 
-    python3 cli/render.py families
-    python3 cli/render.py h3 "a cat stretches on a sunny windowsill"
-    python3 cli/render.py h3 "@pic-1 turns and walks off" --image cat.png --seconds 5
-    python3 cli/render.py krea2 "a tabby cat, studio portrait" --aspect 4:5
+    python3 skills/continuity-render/render.py families
+    python3 skills/continuity-render/render.py h3 "a cat stretches on a sunny windowsill"
+    python3 skills/continuity-render/render.py h3 "@pic-1 turns and walks off" --image cat.png --seconds 5
+    python3 skills/continuity-render/render.py krea2 "a tabby cat, studio portrait" --aspect 4:5
 
 The client half of `/continuity/render` (`creator/routes/render.py`): it uploads
 the files you name, asks the server to build and queue the render — the server
