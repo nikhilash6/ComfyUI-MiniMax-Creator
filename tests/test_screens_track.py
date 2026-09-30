@@ -106,6 +106,37 @@ def corners_at(shots, index):
     return None if shot.corners is None else shot.corners[index - shot.start]
 
 
+# ---- a plain green screen in a green scene, held -----------------------------------------
+#
+# The lab's train carriage, 2026-09-30: fields past the window at hue 80-100 and
+# S 0.4 — green enough for a fixed key, and bigger than the phone — and a thumb
+# over the phone's lower-left corner, whose curve a least-squares side followed.
+
+plain = screen_of("none", "green")
+plain_answer = track.Answer(plain.pattern, plain.colour, plain.width, plain.height)
+held = np.array([[400.0, 250.0], [520.0, 250.0], [520.0, 510.0], [400.0, 510.0]])
+
+
+def carriage(seed, thumb=True):
+    frame = scene(seed)
+    frame[120:330, 40:940] = [0.35, 0.52, 0.30]    # the fields: S 0.42, hue 106
+    frame = place(frame, plain, held)
+    if thumb:
+        ys, xs = np.mgrid[0:H, 0:W]
+        frame[(xs - 385.0) ** 2 + (ys - 520.0) ** 2 <= 55.0 ** 2] = [0.78, 0.58, 0.48]
+    return frame
+
+
+found = track.locate(carriage(20), plain, plain_answer)
+check("a green screen is found beside bigger, duller green fields", found is not None, True)
+if found is not None:
+    check("and its sides are the glass's, not the thumb over its corner",
+          err(track.turned(found.corners, track._turn(found, False, plain.width / plain.height)),
+              held) < 1.0, True)
+shots = followed([carriage(30 + k) for k in range(8)], plain)
+check("held in a hand, it is followed through every frame", [s.seen for s in shots], [8])
+
+
 frames, truths = [], []
 for index in range(12):
     drift = np.array([index * 1.5, index * 0.5])

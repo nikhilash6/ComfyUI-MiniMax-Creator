@@ -50,6 +50,17 @@ from . import spec, tracker
 HUE_BAND = 35.0
 MIN_SAT = 0.31
 MIN_VAL = 0.35
+# **And saturation is relative, the way a neutral key's brightness is.** The
+# tracker is drawn at full saturation and H3 gives it back near 1.0; a scene has
+# its own colour in the key's band at a third to a half of that — the fields
+# past a train window, 2026-09-30, at hue 80 and S 0.3-0.5 beside a phone at
+# hue 120 and S 1.0. With a fixed floor the fields cleared it, outweighed the
+# phone by area, and the pass found the screen in 1 of 328 frames; the same
+# frames with 15% less colour (an h264 decode of them) found it in 232. So the
+# floor is a share of the most saturated pixels in the band, and never under
+# the absolute one.
+KEY_PEAK = 99.5
+KEY_RELATIVE = 0.65
 # A neutral key is bright and colourless, and bright is relative: white on the
 # lab came back around V 0.87, S 0.08, beside a grey wall at V 0.66 that a fixed
 # floor low enough for a dim room would take in too. So the floor is a share of
@@ -69,6 +80,7 @@ NEUTRAL_PEAK = 99.5
 WEAK_HUE_BAND = 45.0
 WEAK_SAT = 0.18
 WEAK_VAL = 0.2
+WEAK_KEY_RELATIVE = 0.45
 WEAK_NEUTRAL_SAT = 0.28
 WEAK_NEUTRAL_RELATIVE = 0.55
 WEAK_NEUTRAL_MIN = 0.3
@@ -178,8 +190,13 @@ def key(frame, colour):
         loose = (sat <= WEAK_NEUTRAL_SAT) & (val >= max(WEAK_NEUTRAL_MIN, WEAK_NEUTRAL_RELATIVE * peak))
         return _grown(core, loose)
     distance = np.abs((hue - target + 180.0) % 360.0 - 180.0)
-    core = (distance <= HUE_BAND) & (sat >= MIN_SAT) & (val >= MIN_VAL)
-    loose = (distance <= WEAK_HUE_BAND) & (sat >= WEAK_SAT) & (val >= WEAK_VAL)
+    band = (distance <= HUE_BAND) & (sat >= MIN_SAT) & (val >= MIN_VAL)
+    if not band.any():
+        return band
+    peak = float(np.percentile(sat[band], KEY_PEAK))
+    core = band & (sat >= KEY_RELATIVE * peak)
+    loose = ((distance <= WEAK_HUE_BAND) & (val >= WEAK_VAL)
+             & (sat >= max(WEAK_SAT, WEAK_KEY_RELATIVE * peak)))
     return _grown(core, loose)
 
 
@@ -262,8 +279,45 @@ def _initial(filled, points):
     return _order(corners)
 
 
+# A side is fitted to its longest straight run. What else lies along it is
+# something in front of the glass — a thumb over a phone's corner, which a hand
+# holding one puts there in nearly every frame — and its outline is curved. A
+# least-squares fit, even Huber-weighted, is pulled by it: the starting fit
+# took a thumb for the left edge of a held phone, 5° off true, and every frame
+# after it was then measured against a screen that was not there. So the line
+# is first found by consensus — the pair of points with the most outline within
+# `STRAIGHT_PX` of the line through them — and then refined on that run alone.
+STRAIGHT_PX = 1.0
+STRAIGHT_PAIRS = 64
+
+
+def _straightest(points):
+    """The points on the straight run most of `points` agree on."""
+    count = len(points)
+    if count < 3:
+        return points
+    rng = np.random.default_rng(count)
+    pairs = rng.integers(0, count, size=(STRAIGHT_PAIRS, 2))
+    pairs = pairs[pairs[:, 0] != pairs[:, 1]]
+    a, b = points[pairs[:, 0]], points[pairs[:, 1]]
+    direction = b - a
+    length = np.linalg.norm(direction, axis=1)
+    keep = length > 1e-6
+    if not keep.any():
+        return points
+    a, direction = a[keep], direction[keep] / length[keep, None]
+    normal = np.stack([-direction[:, 1], direction[:, 0]], axis=1)
+    distance = np.abs(((points[None, :, :] - a[:, None, :]) * normal[:, None, :]).sum(-1))
+    inliers = distance <= STRAIGHT_PX
+    best = int(np.argmax(inliers.sum(axis=1)))
+    run = points[inliers[best]]
+    return run if len(run) >= 2 else points
+
+
 def _fit_line(points):
-    """Huber-weighted orthogonal line fit -> (point on line, unit direction)."""
+    """Huber-weighted orthogonal line fit to the straightest run of `points` ->
+    (point on line, unit direction)."""
+    points = _straightest(points)
     weights = np.ones(len(points))
     for _ in range(6):
         centre = (points * weights[:, None]).sum(axis=0) / weights.sum()
