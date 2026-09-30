@@ -318,6 +318,10 @@ export class PromptBox {
    * @param {()=>object[]} [hooks.getPool]   the piece's reference pool, for a
    *   timeline segment: citable by handle, never attached — writing the chip is
    *   what attaches it at queue time
+   * @param {()=>Array<{handle:string, label:string, file:string}>} [hooks.getScreens]
+   *   the screens this state replaces (`screens.js`). Cited by handle like an
+   *   attachment — the chip is where the screen is in the shot — and never
+   *   attached by citing: a screen exists because it was set up on the card
    * @param {()=>object[]} [hooks.getCast]   the piece's cast. Cited exactly as a
    *   pool asset is, and recognised differently: a subject's name is only a
    *   citation because somebody declared it, so the chips are built from this
@@ -873,7 +877,8 @@ export class PromptBox {
   buildRefs(text) {
     const attached = [...this.hooks.getState().assets,
                       ...(this.hooks.getPool?.() ?? [])];
-    const known = new Set(attached.map((a) => a.handle));
+    const known = new Set([...attached.map((a) => a.handle),
+                           ...(this.hooks.getScreens?.() ?? []).map((s) => s.handle)]);
     // Muted files, so the chip can say it. A name in the sentence whose picture
     // is out of the run reads as a picture being used, and the row saying
     // otherwise is two floors away from the word that is wrong.
@@ -1806,7 +1811,17 @@ export class PromptBox {
       .slice(0, MAX_SUGGESTIONS)
       .map((row) => ({ kind: "library", path: row.path, mediaKind: row.kind, row }));
 
-    return { cast, roster, attached, pool, library };
+    // A screen is set up on the card, so it is only ever cited from here —
+    // found by its handle, by what it is ("smart" finds `@phone-1`) or by the
+    // file that goes on it.
+    const screens = (this.hooks.getScreens?.() ?? [])
+      .filter((screen) => !this.query || screen.handle.toLowerCase().includes(this.query)
+        || screen.label.toLowerCase().includes(this.query)
+        || screen.file.toLowerCase().includes(this.query))
+      .map((screen) => ({ kind: "screen", handle: screen.handle, path: screen.file,
+                          label: screen.label }));
+
+    return { cast, roster, attached, screens, pool, library };
   }
 
   /**
@@ -2073,9 +2088,10 @@ export class PromptBox {
   groups() {
     if (this.mode === '"') return this.sayOptions();
     if (this.mode === "/") return this.commandOptions();
-    const { cast, roster, attached, pool, library } = this.options();
+    const { cast, roster, attached, screens, pool, library } = this.options();
     return [
       { head: this.hooks.attachedLabel?.() ?? t("Attached"), options: attached },
+      { head: t("Screens"), options: screens },
       // Named for where they are, against the library under it: somebody
       // taken out of the roster is in the piece from then on, the roster stops
       // offering them (`options`), and with the shelf folded this row is the
@@ -2151,6 +2167,10 @@ export class PromptBox {
       const thumb = option.kind === "branch" || option.kind === "door"
         ? el("span", { class: "mmc-mention-thumb mmc-mention-glyph" },
              [icon(option.iconName ?? "star", 15)])
+        // A screen is the placeholder the model draws, not the file that goes
+        // on it — the rail tool's glyph, not a thumbnail of the content.
+        : option.kind === "screen"
+        ? el("span", { class: "mmc-mention-thumb mmc-mention-glyph" }, [icon("res", 15)])
         // A look's frame is a file this pack ships out of its own web folder —
         // there is no output behind it and no thumb route to resolve it
         // through, so the URL stylelib built is the src.
@@ -2193,6 +2213,8 @@ export class PromptBox {
         : option.kind === "cast"
         ? (written ? made : [t("cast, not in this prompt yet"), made].filter(Boolean).join(" · "))
         : option.kind === "roster" ? castFactsLine(option.row.facts)
+        : option.kind === "screen"
+        ? [option.label, option.path.split("/").pop()].filter(Boolean).join(" · ")
         : option.handle ? option.path : (option.row?.subfolder || "");
 
       const item = el("button", {
@@ -2703,7 +2725,8 @@ export class PromptBox {
       }
       return;
     }
-    if (option.kind === "cast" || option.kind === "attached" || option.kind === "pool") {
+    if (option.kind === "cast" || option.kind === "attached" || option.kind === "pool"
+        || option.kind === "screen") {
       // Both already have a handle; for a pool asset the chip *is* the
       // attachment — the citation carries it into this generation at queue time.
       this.closeMenu();

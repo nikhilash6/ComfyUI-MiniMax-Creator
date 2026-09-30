@@ -36,7 +36,7 @@ H, W = 720, 960
 
 
 def screen_of(pattern, colour, device="phone"):
-    return spec.parse([{"device": device, "content": {"filename": "x.png"},
+    return spec.parse([{"handle": "screen-1", "device": device, "content": {"filename": "x.png"},
                         "tracker": {"pattern": pattern, "colour": colour}}])[0]
 
 

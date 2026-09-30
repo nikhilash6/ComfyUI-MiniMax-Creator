@@ -520,7 +520,7 @@ class Compiled:
     redetail: ReDetail | None = None
     # The screens this shot replaces (`creator/screens`), each a
     # `screen_spec.Screen`. Their trackers are already in `ref_images`, under
-    # `screen_spec.handle_for(i)`; this is what the screen pass reads after
+    # each screen's own handle; this is what the screen pass reads after
     # decode — which file each screen shows, and how.
     screens: tuple = ()
 
@@ -1661,10 +1661,23 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
                 f"{'' if len(screens) > 1 else 's'} "
                 f"{len(screens)} more of the {family_grammar.max_images} — take a "
                 f"picture off it, or a screen")
-        ref_images = ref_images + [
-            Asset(handle=screen_spec.handle_for(index), kind="image", role="reference",
-                  filename=screen.tracker_file, takes=screen_spec.TAKE)
-            for index, screen in enumerate(screens)]
+        clash = sorted({s.handle for s in screens} & {a.handle for a in assets})
+        if clash:
+            raise CompileError(
+                f"@{clash[0]} is the name of an attached file and of a screen — "
+                f"rename the file")
+        uncited = screen_spec.uncited(
+            screens, {h for text in prose for h in HANDLE_RE.findall(text)})
+        if uncited:
+            raise CompileError(uncited)
+    # Citable like any attachment: the body's `@phone-1` is substituted with
+    # the tracker's `<Picture N>` by the same pass, and refused by the same
+    # dangling-handle rule when the screen is gone.
+    screen_assets = [Asset(handle=screen.handle, kind="image", role="reference",
+                           filename=screen.tracker_file, takes=screen_spec.TAKE)
+                     for screen in screens]
+    ref_images = ref_images + screen_assets
+    citable = assets + screen_assets
 
     if storyboard:
         if any(a.handle == STORYBOARD_HANDLE for a in assets):
@@ -1778,7 +1791,7 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
     try:
         body = _substitute_subjects(
             subjects.substitute_speakers(
-                _substitute(raw_body, labels, assets, muted=muted),
+                _substitute(raw_body, labels, citable, muted=muted),
                 subject_labels, speaker_ids),
             cast, subject_labels)
     except subjects.SubjectError as exc:
@@ -1794,15 +1807,6 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
     # In front of the *body*, not of the finished prompt: the keyframe-alignment
     # instruction has to be the prompt's first line, so words prefixed above it
     # would push it out of position.
-    # What each screen shows, said in the body rather than only in the derived
-    # sections: a refined `subject_definitions` replaces the derived one whole,
-    # and the sentence telling the model to leave the screen alone is the one
-    # that must survive a rewrite.
-    if screens:
-        clause = screen_spec.clauses(
-            screens, [labels[screen_spec.handle_for(i)] for i in range(len(screens))])
-        body = f"{body.rstrip()} {clause}" if body.strip() else clause
-
     triggers = collect_triggers(active_loras(data.get("loras"), checkpoint, family))
     if triggers:
         prefix = ", ".join(triggers)
@@ -1866,15 +1870,15 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
     # soundscape, and the refiner stores that citation as `@aud-1` exactly as it
     # does in a shot body.
     soundscape = _substitute_subjects(
-        _substitute(str(data.get("soundscape") or ""), labels, assets,
+        _substitute(str(data.get("soundscape") or ""), labels, citable,
                     where="overall_soundscape", muted=muted), cast, subject_labels)
     music = _substitute_subjects(
-        _substitute(str(data.get("music") or ""), labels, assets,
+        _substitute(str(data.get("music") or ""), labels, citable,
                     where="non_diegetic_music", muted=muted), cast, subject_labels)
     sections = raw_sections
     if sections:
         sections = {name: _substitute_subjects(
-                        _substitute(text, labels, assets, where=name, muted=muted),
+                        _substitute(text, labels, citable, where=name, muted=muted),
                         cast, subject_labels)
                     for name, text in sections.items()}
 

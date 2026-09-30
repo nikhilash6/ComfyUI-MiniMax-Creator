@@ -562,10 +562,27 @@ def compile_prestage(data, family, image_size_lookup=None):
         prompt = format_prompt(prompt)
 
     refs = _parse_refs(data.get("refs"), *ref_limit(family, data), refs_noun(family), space)
+    # The screens: one tracker per screen, after the user's own pictures so
+    # theirs keep the numbers they were cited by, each cited where the prompt
+    # writes its handle. Parsed here because the citation below has to know
+    # them; added to `refs` further down, after the init promotion and the
+    # framing, neither of which a tracker takes part in.
+    try:
+        screens = screen_spec.parse(data.get("screens"))
+    except screen_spec.ScreenError as exc:
+        raise CompileError(str(exc)) from exc
+    trackers = [(screen.handle, screen.tracker_file, None, {}) for screen in screens]
+    if screens:
+        clash = sorted({s.handle for s in screens} & {h for h, *_ in refs})
+        if clash:
+            raise CompileError(
+                f"@{clash[0]} is the name of an attached picture and of a screen — "
+                f"rename the picture")
+    written = set(HANDLE_RE.findall(prompt))
     # Cited before the family check below, so a prompt citing a reference on a
     # family that reads none is refused for the reference rather than for the
     # citation — one mistake, and the one the user actually made.
-    prompt = _cite_refs(prompt, refs, refs_noun(family), refs_citation(family))
+    prompt = _cite_refs(prompt, refs + trackers, refs_noun(family), refs_citation(family))
     if refs and not family.TAKES_REFS:
         # Refused rather than dropped, in the family's own words: a render that
         # silently ignored the attached images is the failure this package
@@ -649,14 +666,6 @@ def compile_prestage(data, family, image_size_lookup=None):
         source = ratio if (init is not None and image_size_lookup is not None) else None
         width, height, ref_resolution = fit(width, height, source)
 
-    # The screens: one tracker per screen after the user's own pictures, so
-    # theirs keep the numbers they were cited by, and a sentence each saying
-    # what the screen shows. Last, after the init promotion and the framing,
-    # neither of which a tracker takes part in.
-    try:
-        screens = screen_spec.parse(data.get("screens"))
-    except screen_spec.ScreenError as exc:
-        raise CompileError(str(exc)) from exc
     if screens:
         if not family.TAKES_REFS:
             raise CompileError(
@@ -668,13 +677,11 @@ def compile_prestage(data, family, image_size_lookup=None):
                 f"{len(refs)} pictures and {len(screens)} screen tracker"
                 f"{'s' if len(screens) > 1 else ''} is more than this model reads "
                 f"({limit}: {reason}) — take a picture off, or a screen")
-        trackers = [(screen_spec.handle_for(index), screen.tracker_file, None, {})
-                    for index, screen in enumerate(screens)]
+        uncited = screen_spec.uncited(screens, written)
+        if uncited:
+            raise CompileError(uncited)
         if not refs and hasattr(family, "check_refs"):
             family.check_refs(data, trackers, loras)
-        citation = refs_citation(family)
-        labels = [citation.format(n=len(refs) + index + 1) for index in range(len(screens))]
-        prompt = f"{prompt.rstrip()} {screen_spec.clauses(screens, labels)}"
         refs = refs + trackers
 
     checkpoint_field, schedule = family.plan(data)

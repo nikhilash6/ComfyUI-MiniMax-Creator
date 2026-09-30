@@ -8,10 +8,13 @@ exactly as it was written, wall of text and all.
 
 **Screens: a picture or clip put on a phone, tablet, laptop or TV in the shot,
 with its text as sharp as the file.** A shot can carry up to two screens, each
-a device and a file. The model is never shown the file: each screen's
-placeholder, flat green by default, rides in as one more reference picture with
-a sentence saying the screen shows exactly that and does not change, and after
-decode a screen pass finds it in every frame and composites the file on, at the
+a device and a file, and a handle the prompt cites it by where the screen is
+(`@phone-1`, `@laptop-1`, offered on `@` like any attachment). The model is
+never shown the file: each screen's placeholder, flat green by default, rides
+in as one more reference picture wherever the sentence cites it, and nothing
+is added to the prompt for it — a screen the prompt never cites is refused, not
+placed. After decode a screen pass finds it in every frame and composites the
+file on, at the
 size the reel leaves at and after ReDetail and DLSS 5, which would soften it.
 The screen is followed the way a screen insert is tracked in production: by
 markers on its plane where it has them and by its four edges, forwards and

@@ -13,8 +13,9 @@ import json
 import layout
 from harness import FAILURES, check, passed
 
-passed("screens are validated, stamped, compiled to a tracker reference and a "
-       "clause, refused where they cannot ride, and absent change nothing")
+passed("screens are validated, stamped, compiled to a tracker reference cited "
+       "where the prompt writes its handle, refused where they cannot ride or go "
+       "uncited, and absent change nothing")
 
 _pkg = layout.load("canvas", "registry", "h3_declare", "contextir", "subjects", "compile",
                    "compile_image", "still", "krea2_still", "ideogram4_still", "qwenedit_still",
@@ -33,7 +34,9 @@ def refuses(label, run, fragment, error=Exception):
     FAILURES.append(f"{label}: was not refused")
 
 
-PHONE = {"device": "phone", "content": {"filename": "guide.png", "kind": "image"}}
+PHONE = {"handle": "phone-1", "device": "phone",
+         "content": {"filename": "guide.png", "kind": "image"}}
+LAPTOP = {**PHONE, "handle": "laptop-1", "device": "laptop"}
 GRID = {"pattern": "grid", "colour": "white"}
 
 
@@ -54,13 +57,13 @@ check("and the name alone is enough to draw it again",
 check("a name from another version is not ours to draw",
       spec.parse_tracker_file("v1-grid-white-1080x2340.png"), None)
 
-two = spec.parse([PHONE, {**PHONE, "device": "laptop"}], {"pattern": "plus", "colour": "magenta"})
+two = spec.parse([PHONE, LAPTOP], {"pattern": "plus", "colour": "magenta"})
 check("a second screen takes the next free colour in palette order",
       [(s.colour, s.pattern) for s in two], [("magenta", "plus"), ("white", "plus")])
 check("assign_colours starts from the chosen one",
       spec.assign_colours("green", 3), ["green", "white", "magenta"])
 
-stamped = spec.stamp([PHONE, PHONE], {"pattern": "plus", "colour": "blue"})
+stamped = spec.stamp([PHONE, {**PHONE, "handle": "phone-2"}], {"pattern": "plus", "colour": "blue"})
 check("stamp writes this machine's tracker onto each screen",
       [s["tracker"] for s in stamped],
       [{"pattern": "plus", "colour": "blue"}, {"pattern": "plus", "colour": "white"}])
@@ -81,32 +84,29 @@ refuses("a custom screen with no aspect", lambda: spec.parse([{**PHONE, "device"
         "two positive numbers")
 refuses("a custom screen past 4:1",
         lambda: spec.parse([{**PHONE, "device": "custom", "aspect": [10, 1]}]), "at most 4:1")
-refuses("a screen showing nothing", lambda: spec.parse([{"device": "phone"}]),
+refuses("a screen showing nothing", lambda: spec.parse([{"handle": "phone-1", "device": "phone"}]),
         "has nothing to show")
 refuses("a negative offset", lambda: spec.parse([{**PHONE, "offset_s": -1}]),
         "start offset")
 refuses("an unknown fit", lambda: spec.parse([{**PHONE, "fit": "zoom"}]), "fit must be one of")
 refuses("two screens stamped one colour",
-        lambda: spec.parse([{**PHONE, "tracker": {"pattern": "grid", "colour": "white"}}] * 2),
+        lambda: spec.parse([{**PHONE, "tracker": {"pattern": "grid", "colour": "white"}},
+                            {**LAPTOP, "tracker": {"pattern": "grid", "colour": "white"}}]),
         "two different key colours")
+refuses("a screen with no handle", lambda: spec.parse([{**PHONE, "handle": None}]),
+        "no handle to be cited by")
+refuses("a handle no citation can spell", lambda: spec.parse([{**PHONE, "handle": "phone"}]),
+        "no handle to be cited by")
+refuses("two screens under one handle", lambda: spec.parse([PHONE, {**LAPTOP, "handle": "phone-1"}]),
+        "both called @phone-1")
 refuses("a tracker colour this build does not draw",
         lambda: spec.clean_style({"pattern": "grid", "colour": "red"}), "colour must be one of")
 
 (gridded,) = spec.parse([{**PHONE, "tracker": GRID}])
-check("the clause says what the screen shows, and that it stays put",
-      spec.clauses([gridded], ["<Picture 1>"]),
-      "The phone screen shows <Picture 1> exactly: a flat, uniform white display with an "
-      "even grid of small black squares and a small black upward-pointing triangle in "
-      "each corner; the screen content stays completely static and does not change.")
-(plain,) = spec.parse([{**PHONE, "tracker": {"pattern": "none", "colour": "green"}}])
-check("a plain screen is said to be just its colour", spec.clauses([plain], ["<Picture 1>"]),
-      "The phone screen shows <Picture 1> exactly: a flat, uniform green display with "
-      "nothing on it; the screen content stays completely static and does not change.")
-twin = spec.parse([PHONE, PHONE])
-check("two screens of one kind are told apart by ordinal",
-      [c.split(" shows")[0] for c in spec.clauses(twin, ["<Picture 1>", "<Picture 2>"]).split(". ")
-       if " shows" in c],
-      ["The first phone screen", "The second phone screen"])
+check("an uncited screen is named, with how to cite it", spec.uncited([gridded], set()),
+      "@phone-1 is not in the prompt — write it where that screen is in the shot, as in "
+      "“the screen shows @phone-1”")
+check("a cited one is not", spec.uncited([gridded], {"phone-1"}), None)
 
 
 # ---- the video compile ----------------------------------------------------------------
@@ -114,7 +114,8 @@ check("two screens of one kind are told apart by ordinal",
 
 def blob(segment, **piece_extra):
     return {"version": 2, "prompt": "", "family": "h3", "aspect": "3:4", "short_edge": 768,
-            "segments": [{"prompt": "A hand holds a phone in a gallery.", "duration_s": 5,
+            "segments": [{"prompt": "A hand holds a phone in a gallery; it shows @phone-1.",
+                          "duration_s": 5,
                           "assets": [], **segment}], **piece_extra}
 
 
@@ -124,37 +125,44 @@ def compiled(segment, **piece_extra):
 
 with_screen = compiled({"screens": [{**PHONE, "tracker": GRID}]})
 check("a screen makes the shot a reference generation", with_screen.mode, "REF2VA")
-check("its tracker is the reference, under a handle no citation can spell",
+check("its tracker is the reference, under the screen's own handle",
       [(a.handle, a.filename, a.takes) for a in with_screen.ref_images],
-      [("screen1", "continuity_trackers/v2-grid-white-1080x2340.png [temp]", "screen")])
-check("the clause is in the body, citing the tracker's label",
-      with_screen.body.endswith("The phone screen shows <Picture 1> exactly: a flat, uniform "
-                                "white display with an even grid of small black squares and "
-                                "a small black upward-pointing triangle in each corner; the "
-                                "screen content stays completely static and does not "
-                                "change."), True)
+      [("phone-1", "continuity_trackers/v2-grid-white-1080x2340.png [temp]", "screen")])
+check("the body cites it where the prompt wrote it, and says nothing more",
+      with_screen.body, "A hand holds a phone in a gallery; it shows <Picture 1>.")
 check("and the retention section says it is shown as it is",
       "<Picture 1> (screen display): fully_preserved" in with_screen.prompt, True)
 check("the screen pass is told what goes on it", [s.filename for s in with_screen.screens],
       ["guide.png"])
 
-cited = compiled({"prompt": "@img-1 holds a phone.", "screens": [{**PHONE, "tracker": GRID}],
+cited = compiled({"prompt": "@img-1 holds a phone showing @phone-1.",
+                  "screens": [{**PHONE, "tracker": GRID}],
                   "assets": [{"handle": "img-1", "kind": "image", "role": "reference",
                               "filename": "anna.png"}]})
 check("the user's own picture keeps <Picture 1>; the tracker comes after it",
-      (cited.labels["img-1"], cited.labels["screen1"]), ("<Picture 1>", "<Picture 2>"))
+      (cited.labels["img-1"], cited.labels["phone-1"]), ("<Picture 1>", "<Picture 2>"))
 
-plain = compiled({})
+plain = compiled({"prompt": "A hand holds a phone."})
 check("a shot without screens has none", (plain.screens, plain.mode), ((), "T2VA"))
-empty = compiler.timeline_payloads(blob({"screens": []}))[0]
-bare = compiler.timeline_payloads(blob({}))[0]
+empty = compiler.timeline_payloads(blob({"prompt": "A phone.", "screens": []}))[0]
+bare = compiler.timeline_payloads(blob({"prompt": "A phone."}))[0]
 check("an empty list compiles the prompt a card without the key does",
       compiler.compile_segment(empty).prompt, compiler.compile_segment(bare).prompt)
 
 nine = [{"handle": f"img-{i}", "kind": "image", "role": "reference", "filename": f"{i}.png"}
         for i in range(1, 10)]
+refuses("a screen the prompt never cites",
+        lambda: compiled({"prompt": "A hand holds a phone.", "screens": [PHONE]}),
+        "@phone-1 is not in the prompt")
+refuses("a citation of a screen that is gone",
+        lambda: compiled({"screens": []}), "references @phone-1 but no such asset")
+refuses("a screen named like an attached file",
+        lambda: compiled({"prompt": "@phone-1", "screens": [PHONE],
+                          "assets": [{"handle": "phone-1", "kind": "image",
+                                      "role": "reference", "filename": "p.png"}]}),
+        "an attached file and of a screen")
 refuses("a screen on a shot with every picture slot taken",
-        lambda: compiled({"prompt": " ".join(f"@img-{i}" for i in range(1, 10)),
+        lambda: compiled({"prompt": " ".join(f"@img-{i}" for i in range(1, 10)) + " @phone-1",
                           "assets": nine, "screens": [PHONE]}),
         "needs 1 more of the 9")
 refuses("screens on a merged pass",
@@ -179,24 +187,28 @@ for family in video_families:
 
 
 def still(**extra):
-    return {"version": 1, "arch": "flux2klein", "prompt": "a hand holding a phone",
+    return {"version": 1, "arch": "flux2klein", "prompt": "a hand holding a phone showing @phone-1",
             "aspect": "3:4", "short_edge": 1024, "loras": [], **extra}
 
 
 payload = ci.compile_prestage(still(screens=[{**PHONE, "tracker": GRID}]), klein)
 check("a still's tracker is its last reference", payload.refs,
       ["continuity_trackers/v2-grid-white-1080x2340.png [temp]"])
-check("cited by the family's own spelling", "The phone screen shows Picture 1 exactly" in payload.prompt,
-      True)
+check("cited by the family's own spelling, where the prompt wrote it", payload.prompt,
+      "a hand holding a phone showing Picture 1")
+refuses("a still whose screen the prompt never cites",
+        lambda: ci.compile_prestage(still(prompt="a phone", screens=[PHONE]), klein),
+        "@phone-1 is not in the prompt")
 check("and the screen node is told what goes on it",
       [s["filename"] for s in payload.screens], ["guide.png"])
-check("a still without screens carries none", ci.compile_prestage(still(), klein).screens, ())
+check("a still without screens carries none",
+      ci.compile_prestage(still(prompt="a phone"), klein).screens, ())
 refuses("a still on a family that reads no pictures",
         lambda: ci.compile_prestage(still(arch="ideogram4", screens=[PHONE]), ideogram),
         "cannot be shown a screen tracker")
 refuses("a still whose pictures and trackers outnumber its slots",
         lambda: ci.compile_prestage(still(
-            prompt="@img-1 @img-2 @img-3 and a phone",
+            prompt="@img-1 @img-2 @img-3 and @phone-1",
             refs=[{"handle": f"img-{i}", "filename": f"{i}.png"} for i in (1, 2, 3)],
             screens=[PHONE]), klein),
         "is more than this model reads")

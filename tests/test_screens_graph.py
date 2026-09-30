@@ -73,7 +73,8 @@ H3_MODELS = {"fl2va": "h3/fl2va.safetensors", "ref2va": "h3/ref2va.safetensors",
              "audio_vae": "h3/audio_vae.safetensors"}
 KLEIN_MODELS = {"flux2klein": {"model": "klein.safetensors", "clip": "qwen3.safetensors",
                                "vae": "flux2-vae.safetensors"}}
-PHONE = {"device": "phone", "content": {"filename": "guide.png", "kind": "image"}}
+PHONE = {"handle": "phone-1", "device": "phone",
+         "content": {"filename": "guide.png", "kind": "image"}}
 NEURAL = {"on": True, "profile": "standard", "detail": 1.0, "colour": 1.0,
           "intensity": 1.0, "precision": "fast"}
 
@@ -125,7 +126,7 @@ def by_class(graph):
     return out
 
 
-SHOT = {"prompt": "A hand holds a phone in a gallery.", "duration_s": 5}
+SHOT = {"prompt": "A hand holds a phone in a gallery; it shows @phone-1.", "duration_s": 5}
 TRACKER = os.path.join(temp, "continuity_trackers", "v2-none-green-1080x2340.png")
 
 # --- a video ---------------------------------------------------------------------
@@ -137,7 +138,8 @@ os.makedirs(old)
 for name in ("v1-grid-white-1080x2340.png", "v2-plus-green-1920x1080.png", "mine.png"):
     open(os.path.join(old, name), "wb").close()
 
-check("a piece with no screens emits no pass", PASS in by_class(video(piece([SHOT]))), False)
+BARE = {**SHOT, "prompt": "A hand holds a phone in a gallery."}
+check("a piece with no screens emits no pass", PASS in by_class(video(piece([BARE]))), False)
 check("...and draws no tracker", os.path.exists(TRACKER), False)
 
 kinds = by_class(video(piece([{**SHOT, "screens": [PHONE]}], neural=NEURAL)))
@@ -162,14 +164,15 @@ check("on a strip only the part with a screen is replaced",
 check("a strip with a screen writes its takes off the replaced reel, not per pass",
       "ContinuityTake" in kinds, False)
 check("...where the same strip without one writes them per pass",
-      "ContinuityTake" in by_class(video(piece([SHOT, two[1]]))), True)
+      "ContinuityTake" in by_class(video(piece([BARE, two[1]]))), True)
 
 # --- a still ----------------------------------------------------------------------
 
 klein = {"version": 1, "arch": "flux2klein", "prompt": "a hand holding a phone",
          "aspect": "3:4", "short_edge": 1024, "refs": [], "loras": [], "models": KLEIN_MODELS}
 check("a still with no screens emits no screen node", STILL in by_class(still(klein)), False)
-kinds = by_class(still({**klein, "screens": [PHONE]}))
+kinds = by_class(still({**klein, "prompt": "a hand holding a phone showing @phone-1",
+                         "screens": [PHONE]}))
 check("one screen node on a still", len(kinds.get(STILL, [])), 1)
 still_id, still_inputs = kinds[STILL][0]
 check("the save writes the replaced picture", kinds["MiniMaxH3SaveImage"][0][1]["images"],

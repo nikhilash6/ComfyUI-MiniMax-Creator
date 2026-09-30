@@ -27,13 +27,15 @@ SIZES = [(1080, 2340), (1920, 1080), (1536, 2048), (1920, 822), (400, 400)]
 ASPECTS = [[21, 9], [9, 16], [4, 3], [2.39, 1], [1, 1], [3.9, 1], [4.1, 1], [10, 1],
            [0, 1], [7, 5], [5, 3]]
 SCREENS = [
+    {"handle": "phone-1", "device": "phone", "content": {"filename": "a.png"}},
+    {"handle": "watch-1", "device": "watch", "content": {"filename": "a.png"}},
+    {"handle": "screen-1", "device": "custom", "content": {"filename": "a.png"}},
+    {"handle": "screen-1", "device": "custom", "aspect": [10, 1], "content": {"filename": "a.png"}},
+    {"handle": "screen-1", "device": "custom", "aspect": [16, 9], "content": {"filename": "a.png"}},
+    {"handle": "tv-1", "device": "tv"},
+    {"handle": "laptop-1", "device": "laptop", "content": {"filename": "  "}},
     {"device": "phone", "content": {"filename": "a.png"}},
-    {"device": "watch", "content": {"filename": "a.png"}},
-    {"device": "custom", "content": {"filename": "a.png"}},
-    {"device": "custom", "aspect": [10, 1], "content": {"filename": "a.png"}},
-    {"device": "custom", "aspect": [16, 9], "content": {"filename": "a.png"}},
-    {"device": "tv"},
-    {"device": "laptop", "content": {"filename": "  "}},
+    {"handle": "phone", "device": "phone", "content": {"filename": "a.png"}},
 ]
 
 SCRIPT = """
@@ -52,18 +54,22 @@ console.log(JSON.stringify({
   assign: s.PATTERNS.length && s.COLOURS.map((c) => s.assignColours(c.id, 3)),
   problems: screens.map((screen, i) => s.screenProblem(screen, i)),
   roundtrip: s.serializeScreens(s.parseScreens([
-    { device: "custom", aspect: [21, 9], content: { filename: "b.mp4", kind: "video" },
+    { handle: "screen-2", device: "custom", aspect: [21, 9],
+      content: { filename: "b.mp4", kind: "video" },
       fit: "fit", offset_s: 1.25, when_short: "loop", cuts: "restart", junk: 1 },
     { device: "phone", content: { filename: "a.png" }, fit: "fill", when_short: "hold" },
+    { device: "phone", content: { filename: "c.png" } },
     "not a screen",
   ])),
+  next: [s.nextScreenHandle("laptop", new Set(["laptop-1", "phone-2"])),
+         s.nextScreenHandle("custom", new Set())],
 }));
 """
 
 js = layout.run(SCRIPT, layout.js("screenspec.js"), SIZES, ASPECTS, SCREENS)
 
-check("devices", [{k: d[k] for k in ("id", "label", "noun", "width", "height")} for d in js["devices"]],
-      [{"id": d.id, "label": d.label, "noun": d.noun, "width": d.width, "height": d.height}
+check("devices", [{k: d[k] for k in ("id", "label", "word", "width", "height")} for d in js["devices"]],
+      [{"id": d.id, "label": d.label, "word": d.word, "width": d.width, "height": d.height}
        for d in spec.DEVICES])
 check("colours", js["colours"],
       [{"id": c.id, "fill": list(c.fill), "hue": c.hue} for c in spec.COLOURS])
@@ -87,7 +93,7 @@ for pattern in spec.PATTERNS:
 
 for aspect, got in zip(ASPECTS, js["custom"]):
     try:
-        (screen,) = spec.parse([{"device": "custom", "aspect": aspect,
+        (screen,) = spec.parse([{"handle": "screen-1", "device": "custom", "aspect": aspect,
                                  "content": {"filename": "a.png"}}])
         want = {"width": screen.width, "height": screen.height}
     except spec.ScreenError:
@@ -110,12 +116,18 @@ for index, (screen, got) in enumerate(zip(SCREENS, js["problems"])):
     check(f"screen case {index}: the same problem, in the same words",
           got, want.replace("screen 1", f"screen {index + 1}") if want else None)
 
-check("a card's screens round-trip to only what differs from the defaults", js["roundtrip"], [
-    {"device": "custom", "aspect": [21, 9], "content": {"filename": "b.mp4", "kind": "video"},
+check("a card's screens round-trip to only what differs from the defaults, a screen "
+      "saved without a handle given the next free one for its device", js["roundtrip"], [
+    {"handle": "screen-2", "device": "custom", "aspect": [21, 9],
+     "content": {"filename": "b.mp4", "kind": "video"},
      "fit": "fit", "offset_s": 1.25, "when_short": "loop", "cuts": "restart"},
-    {"device": "phone", "content": {"filename": "a.png", "kind": "image"}},
+    {"handle": "phone-1", "device": "phone", "content": {"filename": "a.png", "kind": "image"}},
+    {"handle": "phone-2", "device": "phone", "content": {"filename": "c.png", "kind": "image"}},
 ])
 check("and what they write, Python reads as the screens they were",
-      [(s.device, s.fit, s.offset_s, s.when_short, s.cuts)
-       for s in spec.parse(js["roundtrip"])],
-      [("custom", "fit", 1.25, "loop", "restart"), ("phone", "fill", 0.0, "hold", "continue")])
+      [(s.handle, s.device, s.fit, s.offset_s, s.when_short, s.cuts)
+       for s in spec.parse(js["roundtrip"][:2])],
+      [("screen-2", "custom", "fit", 1.25, "loop", "restart"),
+       ("phone-1", "phone", "fill", 0.0, "hold", "continue")])
+check("a new handle is the device's word and the first free number",
+      js["next"], ["laptop-2", "screen-1"])

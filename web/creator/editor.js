@@ -17,7 +17,7 @@ import { isVisualReference, previewable, openReferencePreview } from "./referenc
 import { castFamilies, keepAsMod } from "./refmod.js";
 import { t } from "./i18n.js";
 import { openPicker } from "./picker.js";
-import { screenChips, screenTool } from "./screens.js";
+import { screenChips, screenTool, screenMentions, uncitedScreens } from "./screens.js";
 import { openLoras, loraBlock, settlePins } from "./loras.js";
 import { openSettings } from "./settings.js";
 import { openPresetLibrary, styleCastMember } from "./presetlib.js";
@@ -338,6 +338,8 @@ export class CreatorEditor {
       // `syncTimeline` mirrors it on as `pool`, the way the canvas rides on.
       // Citable by chip, never attached: the citation is the attachment.
       getPool: () => this.state.pool ?? [],
+      // The shot's screens, cited where the sentence says the screen is.
+      getScreens: () => screenMentions(this.state),
       // The piece's own list where this body is mounted on the piece — a node
       // face, or the pre-stage's still, whose request is never under
       // `syncTimeline` and has no mirror to read. A strip's card falls through
@@ -3181,16 +3183,23 @@ export class CreatorEditor {
     const known = new Set([
       ...this.state.assets.map((a) => a.handle),
       ...(this.state.pool ?? []).map((a) => a.handle),
+      ...(this.state.screens ?? []).map((s) => s.handle),
     ]);
     const missing = [...new Set(Array.from(this.state.prompt.matchAll(HANDLE_RE), (m) => m[1]))]
       .filter((handle) => !known.has(handle));
-    if (!missing.length) return null;
-    return [el("div", {
-      class: "mmc-warn",
-      text: missing.length > 1
-        ? t("{handles} are in the prompt but not attached.", { handles: missing.map((h) => "@" + h).join(", ") })
-        : t("{handles} is in the prompt but not attached.", { handles: missing.map((h) => "@" + h).join(", ") }),
-    })];
+    // The other way round for a screen: set up on the card and never said
+    // where it is, which compile refuses (`spec.uncited`).
+    const uncited = uncitedScreens(this.state);
+    if (!missing.length && !uncited) return null;
+    return [
+      ...(missing.length ? [el("div", {
+        class: "mmc-warn",
+        text: missing.length > 1
+          ? t("{handles} are in the prompt but not attached.", { handles: missing.map((h) => "@" + h).join(", ") })
+          : t("{handles} is in the prompt but not attached.", { handles: missing.map((h) => "@" + h).join(", ") }),
+      })] : []),
+      ...(uncited ? [el("div", { class: "mmc-warn", text: uncited })] : []),
+    ];
   }
 
   // ---- popovers ------------------------------------------------------------

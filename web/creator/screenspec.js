@@ -7,12 +7,12 @@
 // ---- the spec (mirrors creator/screens/spec.py) ----------------------------------
 
 export const DEVICES = [
-  { id: "phone", label: "Smartphone", noun: "phone screen", width: 1080, height: 2340 },
-  { id: "tablet", label: "Tablet", noun: "tablet screen", width: 1536, height: 2048 },
-  { id: "laptop", label: "Laptop", noun: "laptop screen", width: 1920, height: 1200 },
-  { id: "monitor", label: "Desktop monitor", noun: "monitor screen", width: 1920, height: 1080 },
-  { id: "tv", label: "TV", noun: "TV screen", width: 1920, height: 1080 },
-  { id: "custom", label: "Custom", noun: "screen", width: 1920, height: 1080 },
+  { id: "phone", label: "Smartphone", word: "phone", width: 1080, height: 2340 },
+  { id: "tablet", label: "Tablet", word: "tablet", width: 1536, height: 2048 },
+  { id: "laptop", label: "Laptop", word: "laptop", width: 1920, height: 1200 },
+  { id: "monitor", label: "Desktop monitor", word: "monitor", width: 1920, height: 1080 },
+  { id: "tv", label: "TV", word: "tv", width: 1920, height: 1080 },
+  { id: "custom", label: "Custom", word: "screen", width: 1920, height: 1080 },
 ];
 export const DEFAULT_DEVICE = "phone";
 export const CUSTOM_LONG_SIDE = 1920;
@@ -34,7 +34,20 @@ export const CUTS = ["continue", "restart"];
 export const KINDS = ["image", "video"];
 export const MAX_OFFSET_S = 3600.0;
 
+// A screen's handle: the shape `compile.HANDLE_RE` reads, so the prompt box
+// chips it and compile substitutes it like an attachment's. Mirrors `spec.HANDLE`.
+export const SCREEN_HANDLE_RE = /^[A-Za-z]+-\d+$/;
+
 export const deviceOf = (id) => DEVICES.find((device) => device.id === id) ?? null;
+
+/** The first free handle for a screen of `device` — `phone-1`, then `phone-2`
+ *  — past every handle in `taken`. */
+export function nextScreenHandle(device, taken) {
+  const word = (deviceOf(device) ?? deviceOf(DEFAULT_DEVICE)).word;
+  for (let n = 1; ; n += 1) {
+    if (!taken.has(`${word}-${n}`)) return `${word}-${n}`;
+  }
+}
 export const colourOf = (id) => COLOURS.find((colour) => colour.id === id) ?? null;
 
 /** A settings value -> `{pattern, colour}`, falling back to the default for
@@ -83,6 +96,9 @@ function roundHalfEven(x) {
 export function screenProblem(screen, index) {
   const where = `screen ${index + 1}`;
   if (!screen || typeof screen !== "object") return `${where} must be an object`;
+  if (typeof screen.handle !== "string" || !SCREEN_HANDLE_RE.test(screen.handle)) {
+    return `${where} has no handle to be cited by — it needs one like @${deviceOf(DEFAULT_DEVICE).word}-1`;
+  }
   if (!deviceOf(screen.device ?? DEFAULT_DEVICE)) {
     return `${where}'s device must be one of ${DEVICES.map((d) => d.id).join(", ")}, not ${JSON.stringify(screen.device)}`;
   }
@@ -104,11 +120,24 @@ export function screenProblem(screen, index) {
 
 /** A card's `screens`, as the editor keeps them: the well-formed entries, each
  *  a fresh object. The compiler is what refuses a bad one; this only keeps
- *  junk out of the editor's hands. */
+ *  junk out of the editor's hands.
+ *
+ *  A screen with no usable handle — one saved before screens were cited — is
+ *  given the next free one for its device, so it has a name to be written
+ *  into the prompt by. */
 export function parseScreens(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((screen) => screen && typeof screen === "object").map((screen) => {
-    const out = { device: deviceOf(screen.device) ? screen.device : DEFAULT_DEVICE };
+  const screens = raw.filter((screen) => screen && typeof screen === "object");
+  const taken = new Set(screens.map((screen) => screen.handle)
+    .filter((handle) => typeof handle === "string" && SCREEN_HANDLE_RE.test(handle)));
+  return screens.map((screen) => {
+    const device = deviceOf(screen.device) ? screen.device : DEFAULT_DEVICE;
+    let handle = screen.handle;
+    if (typeof handle !== "string" || !SCREEN_HANDLE_RE.test(handle)) {
+      handle = nextScreenHandle(device, taken);
+      taken.add(handle);
+    }
+    const out = { handle, device };
     if (screen.content && typeof screen.content === "object") {
       out.content = { filename: String(screen.content.filename ?? ""),
                       kind: KINDS.includes(screen.content.kind) ? screen.content.kind : "image" };
@@ -128,6 +157,7 @@ export function parseScreens(raw) {
  *  never written — it is this machine's, stamped on by the node. */
 export function serializeScreens(screens) {
   return (screens ?? []).map((screen) => ({
+    handle: screen.handle,
     device: screen.device ?? DEFAULT_DEVICE,
     ...(screen.device === "custom" && Array.isArray(screen.aspect)
       ? { aspect: screen.aspect.map(Number) } : {}),

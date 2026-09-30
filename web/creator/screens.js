@@ -9,14 +9,19 @@
 // What a screen may be, and the tracker's geometry, are `screenspec.js`, the
 // pure mirror of the Python spec. This is the UI: the tool that adds one, the
 // chips under the attachments, and the popover a chip opens.
+//
+// A screen is cited like an attachment: it has a handle (`@phone-1`), the
+// prompt box chips it and offers it on `@`, and the sentence says where it is.
+// Nothing writes that sentence for you — see `creator/screens/spec.py`.
 
 import { el, icon, dismissable, placeNear } from "./dom.js";
 import { t } from "./i18n.js";
 import { uiSetting, viewUrl } from "./api.js";
 import { stepperPill } from "./pills.js";
+import { HANDLE_RE, renameSubjectCitations, tagIndex } from "./state.js";
 import { DEVICES, DEFAULT_DEVICE, DEFAULT_STYLE, FITS, WHEN_SHORT, CUTS, MAX_SCREENS,
          MAX_OFFSET_S, deviceOf, colourOf, cleanStyle, assignColours, trackerSize,
-         screenProblem, trackerShapes } from "./screenspec.js";
+         screenProblem, trackerShapes, nextScreenHandle } from "./screenspec.js";
 
 // ---- the tracker, drawn --------------------------------------------------------------
 
@@ -73,6 +78,45 @@ export function screenStyle(screens, index) {
 const deviceName = (screen) => t(deviceOf(screen.device ?? DEFAULT_DEVICE)?.label ?? "Custom");
 const fileStem = (name) => String(name ?? "").split("/").pop();
 
+/** Every handle a screen of `state` must not take: its files' (a Creator
+ *  card's `assets`, a still's `refs`) and its other screens'. */
+function takenBy(state, except = null) {
+  const taken = new Set([...(state.assets ?? state.refs ?? [])].map((a) => a.handle));
+  for (const screen of state.screens ?? []) if (screen !== except) taken.add(screen.handle);
+  return taken;
+}
+
+/** The screens of `state` that no text of it cites, in the compiler's words,
+ *  or null. Mirrors `spec.uncited`, over the texts compile reads for them —
+ *  the rewrite's body instead of the sentence while one is on. */
+export function uncitedScreens(state) {
+  const screens = state.screens ?? [];
+  if (!screens.length) return null;
+  const refined = state.refined && state.refined.enabled !== false ? state.refined : null;
+  const texts = [refined?.body || state.prompt, state.soundscape, state.music,
+                 ...Object.values(refined?.sections ?? {})];
+  const cited = new Set();
+  for (const text of texts) {
+    for (const match of String(text ?? "").matchAll(HANDLE_RE)) cited.add(match[1]);
+  }
+  const missing = screens.filter((screen) => !cited.has(screen.handle));
+  if (!missing.length) return null;
+  return t(missing.length === 1
+    ? "{names} is not in the prompt — write it where that screen is in the shot, as in “the screen shows @{first}”"
+    : "{names} are not in the prompt — write it where that screen is in the shot, as in “the screen shows @{first}”",
+  { names: missing.map((screen) => `@${screen.handle}`).join(", "), first: missing[0].handle });
+}
+
+/** What the prompt box offers on `@` and chips in the sentence: each screen by
+ *  its handle, with what it is and what goes on it. */
+export function screenMentions(state) {
+  return (state.screens ?? []).map((screen) => ({
+    handle: screen.handle,
+    label: deviceName(screen),
+    file: screen.content?.filename ?? "",
+  }));
+}
+
 /** The glyph of a device's shape, for the device tiles. */
 function deviceGlyph(size, long = 20) {
   const scale = long / Math.max(size.width, size.height);
@@ -103,8 +147,9 @@ export function screenChips({ state, commit, pick }) {
     const content = screen.content?.filename;
     return el("button", {
       class: `mmc-screen-chip${problem ? " mmc-screen-chip-bad" : ""}`,
-      title: problem ?? t("{device}: the model is shown the tracker, and {file} goes on the screen after the render. Click to set it up.",
-                          { device: deviceName(screen), file: fileStem(content) }),
+      title: problem ?? t("@{handle}, a {device}: write it into the prompt where the screen is. The model is shown the tracker there, and {file} goes on the screen after the render. Click to set it up.",
+                          { handle: screen.handle, device: deviceName(screen).toLowerCase(),
+                            file: fileStem(content) }),
       onclick: (event) => openScreenPopover(event.currentTarget, { state, index, commit, pick }),
     }, [
       trackerPicture(screenStyle(screens, index), size, 26),
@@ -116,7 +161,8 @@ export function screenChips({ state, commit, pick }) {
                           src: viewUrl(content, { preview: true }) }))
         : el("span", { class: "mmc-screen-thumb" }),
       el("span", { class: "mmc-screen-name" }, [
-        el("span", { text: deviceName(screen) }),
+        el("span", { class: `mmc-screen-handle mmc-tag-${tagIndex(screen.handle)}`,
+                     text: `@${screen.handle}` }),
         el("span", { class: "mmc-screen-file", text: content ? fileStem(content) : t("nothing picked") }),
       ]),
     ]);
@@ -130,7 +176,7 @@ export async function addScreen({ state, commit, pick, anchor }) {
   if (screens.length >= MAX_SCREENS) return;
   const chosen = await pick(null);
   if (!chosen) return;
-  screens.push({ device: DEFAULT_DEVICE,
+  screens.push({ handle: nextScreenHandle(DEFAULT_DEVICE, takenBy(state)), device: DEFAULT_DEVICE,
                  content: { filename: chosen.path, kind: chosen.kind === "video" ? "video" : "image" } });
   commit();
   if (anchor?.isConnected) {
@@ -146,9 +192,10 @@ export function screenTool({ state, commit, pick }) {
     disabled: full ? true : undefined,
     title: full
       ? t("A shot can replace at most {max} screens.", { max: MAX_SCREENS })
-      : t("Put a picture or a clip on a screen in the shot. The model draws a "
-        + "marked placeholder there, and your file replaces it after the render, "
-        + "with its text as sharp as the file's own."),
+      : t("Put a picture or a clip on a screen in the shot. Cite the screen in "
+        + "the prompt where it is, like @phone-1: the model draws a placeholder "
+        + "there, and your file replaces it after the render, with its text as "
+        + "sharp as the file's own."),
     onclick: (event) => addScreen({ state, commit, pick, anchor: event.currentTarget }),
   }, [el("span", { class: "mmc-tool-icon" }, [icon("res")]),
       el("span", { text: t("Add screen") })]);
@@ -226,19 +273,25 @@ export function openScreenPopover(anchor, { state, index, commit, pick }) {
           class: "mmc-screen-device",
           "aria-checked": (screen.device ?? DEFAULT_DEVICE) === device.id,
           onclick: () => {
+            if (device.id === (screen.device ?? DEFAULT_DEVICE)) return;
             if (device.id === "custom" && !Array.isArray(screen.aspect)) {
               const current = trackerSize(screen) ?? size;
               screen.aspect = [current.width, current.height];
             }
             if (device.id !== "custom") delete screen.aspect;
-            set({ device: device.id });
+            // The handle says what the screen is, so it follows the device,
+            // and the sentence citing it follows the handle.
+            const handle = nextScreenHandle(device.id, takenBy(state, screen));
+            renameSubjectCitations([state], screen.handle, handle);
+            set({ device: device.id, handle });
           },
         }, [deviceGlyph(tile), el("span", { text: t(device.label) })]);
       }));
 
     const rows = [
       el("div", { class: "mmc-screen-head" }, [
-        el("span", { class: "mmc-pop-title", text: t("Screen {n}", { n: index + 1 }) }),
+        el("span", { class: `mmc-pop-title mmc-tag-${tagIndex(screen.handle)}`,
+                     text: `@${screen.handle}` }),
         el("button", {
           class: "mmc-screen-remove",
           title: t("Take this screen off the shot. The file stays where it is."),

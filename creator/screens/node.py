@@ -144,9 +144,9 @@ def plan(frames, screens, node_id, where, tick=None):
     for number, screen in enumerate(screens, start=1):
         shots, seen = track_pass(frames, screen, tick)
         if seen < MIN_SEEN * count:
-            _report(node_id, f"{where}: screen {number} was found in only {seen} of "
+            _report(node_id, f"{where}: @{screen.handle} was found in only {seen} of "
                              f"{count} frames, so it is left as rendered. Check that "
-                             f"the {spec.COLOUR[screen.colour].words} tracker is "
+                             f"the {spec.COLOUR[screen.colour].label.lower()} tracker is "
                              f"visible and not too small in the shot.")
             continue
         lost = [shot for shot in shots if shot.corners is None]

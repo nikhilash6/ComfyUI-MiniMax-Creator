@@ -30,7 +30,7 @@
 import { el, icon, ICONS, svg, dismissable, keepScroll, placeNear, swappable } from "./dom.js";
 import { DEFAULT_STILL_ARCH, stillFamily } from "./manifest.js";
 import { openPicker } from "./picker.js";
-import { screenChips, screenTool } from "./screens.js";
+import { screenChips, screenTool, screenMentions, uncitedScreens } from "./screens.js";
 import { openLoras, loraBlock, loraBase, settlePins } from "./loras.js";
 import { openFrameGrab } from "./framegrab.js";
 import { openContactSheet } from "./contact.js";
@@ -151,6 +151,8 @@ export class PreStageEditor {
       // are chips, typing `@ann` offers the roster, and picking somebody
       // casts them here with their pictures — onto this still's own lists.
       getCast: () => this.state.subjects ?? [],
+      // The still's screens, cited where the prompt says the screen is.
+      getScreens: () => screenMentions(this.state),
       castFromLibrary: (member) => {
         const subject = P.addSubjectToPiece(member, this.castPiece());
         if (!subject) return null;
@@ -820,8 +822,12 @@ export class PreStageEditor {
     if (settlePins(state, S.preStageFamilyId(state.arch), () => this.commit())) this.onCommit?.();
     this.loraHost.replaceChildren(...(state.loras.length ? [this.renderLoras()] : []));
     this.pillsHost.replaceChildren(this.renderPills());
+    // A screen the prompt never says the place of, which `compile_prestage`
+    // refuses — said as it is typed, the way the Creator says it.
+    const uncited = uncitedScreens(state);
     this.noticeHost.replaceChildren(
-      ...(this.notice ? [el("div", { class: "mmc-warn", text: this.notice })] : []));
+      ...(this.notice ? [el("div", { class: "mmc-warn", text: this.notice })] : []),
+      ...(uncited ? [el("div", { class: "mmc-warn", text: uncited })] : []));
     // Only where there are widgets to drive: the window this body also opens
     // into is a second editor over the same state with no node behind it, and
     // the sampler row belongs to the node. `samplingBar` reads `widgets.seed`

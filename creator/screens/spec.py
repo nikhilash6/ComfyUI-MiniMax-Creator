@@ -13,6 +13,16 @@ screen by the node before compiling (`stamp`), which puts them in the segment's
 cache key: a tracker changed on the settings page is a different reference
 picture, and the render has to be made again for it.
 
+**The prompt cites a screen; nothing writes the citation for it.** Each screen
+has a handle shaped like an attachment's (`@phone-1`, `@laptop-1`) and is
+written into the sentence where the user wants it — "the phone in her hand
+shows @phone-1". It used to be the other way round: a sentence saying the
+screen showed the tracker was appended to the end of the body, wherever the
+shot had got to by then. On a shot that cut away from the phone to a room, that
+sentence was the last thing the model read, and it painted the room green. Only
+the writer knows which device in the shot is the screen and when it is in
+frame, so an uncited screen is refused rather than placed.
+
 **Why plain green is the default.** Tried on the lab, 2026-09-30. The spec's
 magenta threw a pink cast on the thumb and bezel, and H3 drew faint patterns
 inside it that a shading pass carries onto the content. White came back flat
@@ -33,24 +43,24 @@ from dataclasses import dataclass
 # ---- the devices --------------------------------------------------------------
 #
 # Each type's tracker is drawn at its screen's own aspect, so the model is shown
-# a picture shaped like the screen it is asked to put it on. `noun` is what the
-# prompt calls it.
+# a picture shaped like the screen it is asked to put it on. `word` is the front
+# of the handle a screen of this type is cited by: `@phone-1`, `@tv-2`.
 
 @dataclass(frozen=True)
 class Device:
     id: str
     label: str
-    noun: str
+    word: str
     width: int
     height: int
 
 
 DEVICES = (
-    Device("phone", "Smartphone", "phone screen", 1080, 2340),
-    Device("tablet", "Tablet", "tablet screen", 1536, 2048),
-    Device("laptop", "Laptop", "laptop screen", 1920, 1200),
-    Device("monitor", "Desktop monitor", "monitor screen", 1920, 1080),
-    Device("tv", "TV", "TV screen", 1920, 1080),
+    Device("phone", "Smartphone", "phone", 1080, 2340),
+    Device("tablet", "Tablet", "tablet", 1536, 2048),
+    Device("laptop", "Laptop", "laptop", 1920, 1200),
+    Device("monitor", "Desktop monitor", "monitor", 1920, 1080),
+    Device("tv", "TV", "tv", 1920, 1080),
     Device("custom", "Custom", "screen", 1920, 1080),
 )
 DEVICE = {device.id: device for device in DEVICES}
@@ -74,14 +84,13 @@ class KeyColour:
     label: str
     fill: tuple
     hue: float | None
-    words: str
 
 
 COLOURS = (
-    KeyColour("white", "White", (242, 242, 242), None, "white"),
-    KeyColour("magenta", "Magenta", (255, 0, 255), 300.0, "magenta"),
-    KeyColour("green", "Green", (0, 255, 0), 120.0, "green"),
-    KeyColour("blue", "Blue", (0, 0, 255), 240.0, "blue"),
+    KeyColour("white", "White", (242, 242, 242), None),
+    KeyColour("magenta", "Magenta", (255, 0, 255), 300.0),
+    KeyColour("green", "Green", (0, 255, 0), 120.0),
+    KeyColour("blue", "Blue", (0, 0, 255), 240.0),
 )
 COLOUR = {colour.id: colour for colour in COLOURS}
 
@@ -93,13 +102,6 @@ COLOUR = {colour.id: colour for colour in COLOURS}
 # set — nothing on it for H3 to draw slightly off, so nothing to leave a sliver
 # of, and the screen is followed by its four edges alone.
 PATTERNS = ("grid", "plus", "none")
-PATTERN_WORDS = {
-    "grid": "an even grid of small black squares and a small black "
-            "upward-pointing triangle in each corner",
-    "plus": "small black crosshairs in each corner and a large black plus in the "
-            "centre",
-    "none": "nothing on it",
-}
 
 DEFAULT_STYLE = {"pattern": "none", "colour": "green"}
 
@@ -115,10 +117,12 @@ CUTS = ("continue", "restart")
 KINDS = ("image", "video")
 MAX_OFFSET_S = 3600.0
 
-# The handle the tracker rides under in a request's reference list. No `@`
-# citation can spell it — `compile.HANDLE_RE` wants a dash and a number — so a
-# user's own attachment can never collide with it.
-HANDLE_PREFIX = "screen"
+# A screen's handle: `compile.HANDLE_RE`'s shape, so the prompt box, the
+# substitution and the dangling-handle refusal treat it as the attachment
+# handle it stands beside. Stored on the screen rather than derived from its
+# position, so taking screen 1 off does not turn the `@phone-2` a sentence
+# cites into a `@phone-1`.
+HANDLE = re.compile(r"^[A-Za-z]+-\d+$")
 TAKE = "screen"
 
 # Where the drawn trackers live: ComfyUI's temp folder, addressed with core's own
@@ -140,6 +144,7 @@ class ScreenError(ValueError):
 
 @dataclass(frozen=True)
 class Screen:
+    handle: str                # what the prompt cites it by, without the `@`
     device: str
     width: int                 # the tracker's size, which is the screen's aspect
     height: int
@@ -156,10 +161,6 @@ class Screen:
     def tracker_file(self):
         return tracker_file(self.pattern, self.colour, self.width, self.height)
 
-    @property
-    def noun(self):
-        return DEVICE[self.device].noun
-
     @classmethod
     def from_json(cls, data):
         """`to_json`'s dict back into a `Screen`."""
@@ -167,15 +168,10 @@ class Screen:
 
     def to_json(self):
         """What the screen pass is handed — plain data, sorted by the caller."""
-        return {"device": self.device, "width": self.width, "height": self.height,
+        return {"handle": self.handle, "device": self.device, "width": self.width, "height": self.height,
                 "filename": self.filename, "kind": self.kind, "fit": self.fit,
                 "offset_s": self.offset_s, "when_short": self.when_short,
                 "cuts": self.cuts, "pattern": self.pattern, "colour": self.colour}
-
-
-def handle_for(index):
-    """Screen `index`'s reference handle. Screens are told apart by position."""
-    return f"{HANDLE_PREFIX}{index + 1}"
 
 
 def tracker_file(pattern, colour, width, height):
@@ -304,6 +300,10 @@ def parse(raw_screens, style=None):
         where = f"screen {index + 1}"
         if not isinstance(raw, dict):
             raise ScreenError(f"{where} must be an object")
+        handle = raw.get("handle")
+        if not isinstance(handle, str) or not HANDLE.match(handle):
+            raise ScreenError(f"{where} has no handle to be cited by — it needs one "
+                              f"like @{DEVICE[DEFAULT_DEVICE].word}-1")
         device = _choice(raw, "device", tuple(DEVICE), DEFAULT_DEVICE, where)
         width, height = _size(device, raw.get("aspect"))
         filename, kind = _content(raw, where)
@@ -318,12 +318,16 @@ def parse(raw_screens, style=None):
         except ValueError as exc:
             raise ScreenError(f"{where}: {exc}") from exc
         screens.append(Screen(
-            device=device, width=width, height=height, filename=filename, kind=kind,
+            handle=handle, device=device, width=width, height=height, filename=filename, kind=kind,
             fit=_choice(raw, "fit", FITS, FITS[0], where),
             offset_s=round(float(offset), 3),
             when_short=_choice(raw, "when_short", WHEN_SHORT, WHEN_SHORT[0], where),
             cuts=_choice(raw, "cuts", CUTS, CUTS[0], where),
             pattern=tracker["pattern"], colour=tracker["colour"]))
+    handles = [s.handle for s in screens]
+    if len(set(handles)) != len(handles):
+        raise ScreenError("two screens on one shot are both called "
+                          f"@{next(h for h in handles if handles.count(h) > 1)}")
     colours = [s.colour for s in screens]
     if len(set(colours)) != len(colours):
         raise ScreenError("two screens on one shot need two different key colours — "
@@ -331,32 +335,21 @@ def parse(raw_screens, style=None):
     return tuple(screens)
 
 
-def clause(screen, label, ordinal=None):
-    """The sentence the prompt carries for one screen.
+def uncited(screens, cited):
+    """The screens no text cites, as a refusal, or None.
 
-    It says what the picture on the screen is in so many words, and that it does
-    not move, because a model handed a flat colour with no instruction invents a
-    UI on it and scrolls it. `ordinal` tells two screens of the same kind apart.
+    `cited` is every handle the prompt's texts write. A screen the sentence
+    never names still sends its tracker, with nothing saying which device in
+    the shot it belongs on — the model puts the colour wherever it likes, and
+    the pass then has a green room to fill. See the module docstring.
     """
-    noun = screen.noun
-    if ordinal:
-        noun = f"{ordinal} {noun}"
-    colour = COLOUR[screen.colour].words
-    return (f"The {noun} shows {label} exactly: a flat, uniform {colour} display "
-            f"with {PATTERN_WORDS[screen.pattern]}; the screen content stays "
-            f"completely static and does not change.")
-
-
-def clauses(screens, labels):
-    """Every screen's sentence, joined. `labels[i]` is screen i's citation."""
-    nouns = [s.noun for s in screens]
-    out = []
-    for index, screen in enumerate(screens):
-        ordinal = None
-        if nouns.count(screen.noun) > 1:
-            ordinal = ("first", "second", "third", "fourth")[nouns[:index].count(screen.noun)]
-        out.append(clause(screen, labels[index], ordinal))
-    return " ".join(out)
+    missing = [s for s in screens if s.handle not in cited]
+    if not missing:
+        return None
+    names = ", ".join("@" + s.handle for s in missing)
+    return (f"{names} {'is' if len(missing) == 1 else 'are'} not in the prompt — "
+            f"write it where that screen is in the shot, as in “the screen "
+            f"shows @{missing[0].handle}”")
 
 
 _TRACKER_NAME = re.compile(

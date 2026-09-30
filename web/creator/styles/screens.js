@@ -31,6 +31,9 @@ export const css = `
   display: flex; align-items: center; justify-content: center;
 }
 .mmc-screen-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+/* The handle the prompt cites it by, in the hue its chip wears there. */
+.mmc-screen-handle { color: var(--tag, var(--mmc-accent)); font-weight: 500; }
+.mmc-screen-pop .mmc-screen-head .mmc-pop-title { color: var(--tag, var(--mmc-accent)); font-weight: 500; }
 .mmc-screen-file {
   color: var(--mmc-dim); max-width: 150px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

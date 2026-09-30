@@ -285,11 +285,17 @@ movement clips); footage they were cast into stays attached.
 
 When a shot has a phone, a tablet, a laptop, a monitor or a TV in it that
 should show something specific, press **Add screen** on the rail and pick the
-picture or clip it should show. The model never sees your file. It is shown a
-flat green placeholder and told the screen shows exactly that, and after the
-render the screen pass finds the green in every frame and puts your file on
-it. Text on the screen comes out as sharp as the file itself, even on a fast,
-low-resolution render.
+picture or clip it should show. The screen gets a handle, `@phone-1` or
+`@laptop-1` after its device, and you write it into the prompt where the screen
+is, the way you cite an attachment: "a woman holds up her phone; the screen
+shows @phone-1". Typing `@` offers it. Nothing is added to the prompt for you,
+so a screen the prompt never cites is refused with a warning under the box.
+Changing a screen's device renames its handle, and the prompt with it.
+
+The model never sees your file. It is shown a flat green placeholder where you
+cited the screen, and after the render the screen pass finds the green in every
+frame and puts your file on it. Text on the screen comes out as sharp as the
+file itself, even on a fast, low-resolution render.
 
 Press a screen's chip to set it up. The pair at the top of the popover is the
 whole idea: what the model is shown on the left, what replaces it on the
