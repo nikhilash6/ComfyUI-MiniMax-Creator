@@ -90,6 +90,20 @@ headless.throw_video(piece, h3, ["fl2va"], LAB, lora="my_merged_turbo.safetensor
 check("a named file is taken as named, at the family's default quality",
       (piece["loras"][0]["name"], piece["turbo"]["quality"]),
       ("my_merged_turbo.safetensors", turbo["default_quality"]))
+piece = {"family": "h3", "loras": [{"name": "anna_person_v2.safetensors", "strength": 0.8}],
+         "sampling": {"shift_video": 9.0}}
+said = headless.throw_video(piece, h3, ["ref2va"], LAB, quality="good", merged=True)
+check("a merged checkpoint throws the step drop and no LoRA, even where two could fit",
+      (said, [e["name"] for e in piece["loras"]]),
+      ({"quality": "good", "steps": 8, "loras": [], "merged": True}, ["anna_person_v2.safetensors"]))
+check("on the family's row, the shifts left at the checkpoint's own", piece["sampling"],
+      {"steps": 8, **turbo["row"], "shift_video": 9.0})
+check("and remembered the way the node's no-LoRA choice is", piece["turbo"],
+      {"lora": None, "on": True, "quality": "good", "merged": True})
+refuses("a named LoRA with merged is a contradiction, not a pick",
+        lambda: headless.throw_video({}, h3, ["ref2va"], LAB, lora=REF8, merged=True), "merged")
+refuses("an ambiguous distill points at merged too",
+        lambda: headless.pick_lora(turbo, LAB, 6, "ref2va", "MiniMax H3"), "merged: true")
 refuses("an unknown quality is refused by name",
         lambda: headless.throw_video({}, h3, ["fl2va"], LAB, quality="best"), "draft", "good")
 check("a family with no switch throws nothing",

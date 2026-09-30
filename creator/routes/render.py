@@ -27,7 +27,7 @@ Request (POST, JSON):
      "still": false,                 # a picture rather than a clip (image families)
      "pictures": [{"filename": "cat.png", "as": "start"}],   # input/ names
      "seconds": 6, "aspect": "16:9", "short_edge": 768, "seed": 7,
-     "fast": true, "turbo_lora": null, "quality": null,
+     "fast": true, "turbo_lora": null, "merged": false, "quality": null,
      "models": {"clip": "..."}}      # a slot's file, over this machine's picks
 
 A picture is cited in the prompt as `@pic-1` (`@clip-1`, `@snd-1` for video and
@@ -148,7 +148,12 @@ def _render(body):
     piece, widgets = base
     names = server_routes._lora_names()
     lora = str(body.get("turbo_lora") or "").strip() or None
+    merged = body.get("merged") is True
     if still:
+        if merged:
+            raise headless.HeadlessError(
+                "merged: true is for a video family's checkpoint; a picture family's "
+                "turbo checkpoint is picked in its turbo_model slot.")
         picks = room._picked(family, stored, core_models.available(),
                              own=piece["models"][piece["arch"]])
         thrown = headless.throw_still(piece, family, picks, names, lora, body.get("quality"))
@@ -156,7 +161,8 @@ def _render(body):
         # The checkpoints the dry run routed to — which distill each one takes.
         passes = server_routes.compiled_passes(built["piece"])["passes"]
         checkpoints = sorted({p["checkpoint"] for p in passes if not p["clip"]})
-        thrown = headless.throw_video(piece, family, checkpoints, names, lora, body.get("quality"))
+        thrown = headless.throw_video(piece, family, checkpoints, names, lora,
+                                      body.get("quality"), merged=merged)
     if thrown is None:
         # Nothing to throw: the family has no switch, and its native row is its
         # only row. Said, so nobody reads a long render as a fast one.

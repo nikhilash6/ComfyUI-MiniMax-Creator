@@ -28,6 +28,13 @@ an hour where a turbo one is minutes, and the caller asked for the fast one;
 rendering the other without saying so is the fallback this pack does not do.
 The caller says `fast: false` to mean native.
 
+**A merged checkpoint is said, not guessed.** Some checkpoints carry the
+distillation in their own weights (a hybrid H3 merge, say) and want the step
+drop with no LoRA at all — the node's "no LoRA · merged checkpoint" choice.
+Nothing in a filename says so reliably, so the caller says `merged: true`, and
+the switch then writes only what the node's does in that mode: the step table
+and the row, with the flow shifts left at the checkpoint's own.
+
 Pure: no ComfyUI, no disk. The route hands in the manifest, the picks and the
 LoRA names.
 """
@@ -87,11 +94,13 @@ def pick_lora(turbo, names, steps, checkpoint=None, label=""):
     if not found:
         raise HeadlessError(
             f"no turbo LoRA for {what} is in models/loras, so this cannot render "
-            f"fast. Name one with turbo_lora, or ask for a native render "
+            f"fast. Name one with turbo_lora, say merged: true if the checkpoint "
+            f"has the distillation merged in, or ask for a native render "
             f"(fast: false) — at the family's full step count.")
     raise HeadlessError(
         f"more than one LoRA could be the turbo for {what}: "
-        f"{', '.join(found)}. Name the one to use with turbo_lora.")
+        f"{', '.join(found)}. Name the one to use with turbo_lora, or say "
+        f"merged: true if the checkpoint has the distillation merged in.")
 
 
 def preset(turbo, name):
@@ -110,18 +119,30 @@ def preset(turbo, name):
             "row": turbo["row"], "steps": turbo["steps"]}
 
 
-def throw_video(piece, family, checkpoints, names, lora=None, quality=None):
+def throw_video(piece, family, checkpoints, names, lora=None, quality=None, merged=False):
     """Put the video family's turbo switch on `piece`, in place -> what it did.
 
     `checkpoints` are the routed checkpoints the dry run said this piece samples
     on. Each gets its own distillation, claimed for it alone (`modes`), so the
     stack never patches an FL2V distill onto Ref2V weights; the row is the
     first one's, and on a piece of one shot there is only one.
+
+    `merged` is the checkpoint carrying its own distillation: no LoRA, the
+    family's step table and row, the shifts untouched — `turbo.js`' `throwOn`
+    with no file.
     """
     turbo = turbo_of(family)
     if turbo is None:
         return None
     quality = _quality(turbo, quality)
+    if merged:
+        if lora:
+            raise HeadlessError("turbo_lora and merged: true contradict each other — a "
+                                "merged checkpoint takes no turbo LoRA.")
+        steps = turbo["steps"][quality]
+        piece["turbo"] = {"lora": None, "on": True, "quality": quality, "merged": True}
+        piece["sampling"] = {**(piece.get("sampling") or {}), "steps": steps, **turbo["row"]}
+        return {"quality": quality, "steps": steps, "loras": [], "merged": True}
     routed = [c for c in checkpoints if c] or [None]
     steps_wanted = turbo["steps"][quality]
     files = {c: lora or pick_lora(turbo, names, steps_wanted, c, family["label"])

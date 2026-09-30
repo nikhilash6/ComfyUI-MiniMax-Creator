@@ -50,6 +50,13 @@ there are several, it refuses the render and names the candidates. Pass one
 with `--turbo-lora NAME`, or use `--native`. It never falls back to a slow render
 without saying so.
 
+Some checkpoints have the distillation merged into their weights and need no
+turbo LoRA at all. Pass `--merged` for those: the render gets the turbo step
+count and sampler with no LoRA, the same as the node's "no LoRA · merged
+checkpoint" choice. The server can't tell a merged checkpoint from its
+filename, so it's yours to say. It works for video families only; a picture
+family's turbo checkpoint goes in its `turbo_model` slot.
+
 ## Attaching pictures
 
 ```
@@ -120,7 +127,7 @@ whether it is ready, the files it would use, and what a fast render would use.
 ```json
 {"family": "h3", "prompt": "@pic-1 walks off", "pictures": [{"filename": "cat.png", "as": "start"}],
  "seconds": 6, "aspect": "16:9", "short_edge": 768, "seed": 7,
- "fast": true, "quality": "good", "turbo_lora": null, "still": false,
+ "fast": true, "quality": "good", "turbo_lora": null, "merged": false, "still": false,
  "models": {"clip": "some_encoder.safetensors"}}
 ```
 

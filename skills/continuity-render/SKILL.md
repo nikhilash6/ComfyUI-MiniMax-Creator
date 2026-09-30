@@ -80,6 +80,10 @@ sentence instead of trying another route:
 - **No turbo LoRA, or several candidates:** pick one of the named files with
   `--turbo-lora NAME` (prefer the one whose step count matches the quality),
   or ask the user. Use `--native` only if the user accepts a slow render.
+- **A merged checkpoint:** some checkpoints have the distillation merged into
+  their weights and take no turbo LoRA. When the user says so, pass `--merged`:
+  the turbo step count with no LoRA. The queued line names the checkpoint the
+  render samples on.
 - **A family cannot render yet (missing files):** tell the user which slot is
   missing. Don't switch to another family without saying so.
 - **A citation or picture problem** (for example `@pic-2` cited when only one

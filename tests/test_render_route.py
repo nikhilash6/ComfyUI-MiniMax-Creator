@@ -72,7 +72,9 @@ STORED = {"h3": {"fl2va": "h3_fl2va.safetensors", "ref2va": "h3_ref2va.safetenso
                     "clip": "qwen3vl_4b.safetensors", "vae": "qwen_image_vae.safetensors"}}
 
 route.core_models.available = lambda: {"by_folder": FILES, "files": {}, "installed": {}}
-route.settings.load = lambda: {"weights": STORED}
+# The whole defaults under the picks, as `settings.load` hands them: a stub of
+# the weights alone lost every key added since (`screen_tracker` first).
+route.settings.load = lambda: {**route.settings.DEFAULTS, "weights": STORED}
 route.server_routes._lora_names = lambda: [FL2V, REF8, "anna.safetensors"]
 # A picture's size is read off disk by the dry run; there is no disk here.
 route.server_routes.media.image_size = lambda filename, crop=None: (1024, 768)
@@ -116,6 +118,18 @@ else:
     check("with the picture on the card as a reference",
           [(a["handle"], a["role"], a["filename"]) for a in blob["segments"][-1]["assets"]],
           [("pic-1", "reference", "cat.png")])
+
+built = render(family="h3", prompt="@pic-1 walks through a garden",
+               pictures=[{"filename": "cat.png", "as": "ref"}], quality="good", merged=True)
+if "problem" in built:
+    FAILURES.append(f"a merged-checkpoint H3 render was refused: {built['problem']}")
+else:
+    _, _, blob = inputs(built)
+    check("merged: the Ref2V render takes the step drop and no distill",
+          (blob["loras"], blob["sampling"]["steps"], blob["turbo"].get("merged")), ([], 8, True))
+check("merged is refused on a still, pointed at the turbo checkpoint slot",
+      "turbo_model" in render(family="krea2", prompt="a cat", still=True,
+                              merged=True).get("problem", ""), True)
 
 built = render(family="h3", prompt="a cat", fast=False)
 _, _, blob = inputs(built)

@@ -20,7 +20,8 @@ own sentence when a render cannot be built or fails.
 Renders are fast by default: the family's turbo switch, at its default quality.
 `--native` renders at the family's full step count instead (slow on video).
 When the server cannot tell which LoRA is the turbo one it says so and names
-the candidates; pass one with `--turbo-lora`. `families` lists what the machine
+the candidates; pass one with `--turbo-lora`, or `--merged` when the checkpoint
+has the distillation merged in and wants no LoRA. `families` lists what the machine
 can render and what fast would use for each family.
 
 Pictures: `--image PATH[:AS]`, repeatable. A local file is uploaded to the
@@ -207,6 +208,8 @@ def main():
     parser.add_argument("--native", action="store_true", help="the family's full step count, not turbo")
     parser.add_argument("--quality", help="turbo quality stop: draft, medium or good")
     parser.add_argument("--turbo-lora", help="the turbo LoRA to use, when the server cannot tell")
+    parser.add_argument("--merged", action="store_true",
+                        help="the checkpoint has the distillation merged in: turbo steps, no LoRA")
     parser.add_argument("--model", action="append", default=[], metavar="SLOT=FILE",
                         help="a weight file for one slot, over the server's own pick")
     parser.add_argument("--out", default="renders", help="download folder (default ./renders)")
@@ -235,6 +238,8 @@ def main():
             "seed": seed, "fast": not args.native, "models": models}
     if args.still:
         body["still"] = True
+    if args.merged:
+        body["merged"] = True
     for key, value in (("seconds", args.seconds), ("aspect", args.aspect),
                        ("short_edge", args.edge), ("quality", args.quality),
                        ("turbo_lora", args.turbo_lora)):
@@ -245,9 +250,14 @@ def main():
     speed = queued["speed"]
     if isinstance(speed, dict):
         turbo = speed["turbo"]
-        using = turbo.get("checkpoint") or ", ".join(turbo.get("loras") or [])
+        using = (turbo.get("checkpoint") or ", ".join(turbo.get("loras") or [])
+                 or ("merged checkpoint" if turbo.get("merged") else ""))
         speed = f"turbo {turbo['quality']}, {turbo['steps']} steps, {using}"
-    say(f"queued {queued['prompt_id']} — seed {seed}, {speed}")
+    # The checkpoint a video render samples on, said beside the speed: whether a
+    # turbo LoRA belongs on it at all depends on which file it is.
+    models = (queued.get("piece") or {}).get("models") or {}
+    on = f", on {models[models['route']]}" if models.get(models.get("route")) else ""
+    say(f"queued {queued['prompt_id']} — seed {seed}, {speed}{on}")
     if args.no_wait:
         print(queued["prompt_id"])
         return
