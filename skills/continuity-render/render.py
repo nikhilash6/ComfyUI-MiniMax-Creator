@@ -212,6 +212,8 @@ def main():
                         help="the checkpoint has the distillation merged in: turbo steps, no LoRA")
     parser.add_argument("--model", action="append", default=[], metavar="SLOT=FILE",
                         help="a weight file for one slot, over the server's own pick")
+    parser.add_argument("--device", action="append", default=[], metavar="SLOT=DEVICE",
+                        help="where one slot loads (e.g. clip=cuda:1), over the server's pins")
     parser.add_argument("--out", default="renders", help="download folder (default ./renders)")
     parser.add_argument("--no-wait", action="store_true", help="queue and print the prompt id")
     parser.add_argument("--url", default=os.environ.get("COMFY_URL") or DEFAULT_URL,
@@ -232,6 +234,12 @@ def main():
         if not sep:
             parser.error(f"--model takes SLOT=FILE; got {item!r}")
         models[slot] = filename
+    devices = {}
+    for item in args.device:
+        slot, sep, device = item.partition("=")
+        if not sep:
+            parser.error(f"--device takes SLOT=DEVICE; got {item!r}")
+        devices[slot] = device
     seed = args.seed if args.seed is not None else random.randrange(2 ** 32)
     body = {"family": args.family, "prompt": args.prompt,
             "pictures": [_picture(server, spec) for spec in args.image],
@@ -240,6 +248,8 @@ def main():
         body["still"] = True
     if args.merged:
         body["merged"] = True
+    if devices:
+        body["devices"] = devices
     for key, value in (("seconds", args.seconds), ("aspect", args.aspect),
                        ("short_edge", args.edge), ("quality", args.quality),
                        ("turbo_lora", args.turbo_lora)):
@@ -257,6 +267,11 @@ def main():
     # turbo LoRA belongs on it at all depends on which file it is.
     models = (queued.get("piece") or {}).get("models") or {}
     on = f", on {models[models['route']]}" if models.get(models.get("route")) else ""
+    # And where each model loads: everything on one card is the slow render
+    # nobody asked for, and it is invisible from the speed line alone.
+    pins = models.get("devices") or {}
+    on += (" (" + ", ".join(f"{slot} on {device}" for slot, device in sorted(pins.items())) + ")"
+           if pins else " (every model on ComfyUI's default device)")
     say(f"queued {queued['prompt_id']} — seed {seed}, {speed}{on}")
     if args.no_wait:
         print(queued["prompt_id"])

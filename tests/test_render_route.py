@@ -131,6 +131,16 @@ check("merged is refused on a still, pointed at the turbo checkpoint slot",
       "turbo_model" in render(family="krea2", prompt="a cat", still=True,
                               merged=True).get("problem", ""), True)
 
+STORED["h3"]["devices"] = {"clip": "cuda:1", "fl2va": "cuda:0"}
+built = render(family="h3", prompt="a cat", devices={"fl2va": "cuda:1", "vae": "cpu"})
+if "problem" in built:
+    FAILURES.append(f"a render with pinned devices was refused: {built['problem']}")
+else:
+    _, _, blob = inputs(built)
+    check("the machine's pins ride on a headless render, a request's own over them slot by slot",
+          blob["models"]["devices"], {"clip": "cuda:1", "fl2va": "cuda:1", "vae": "cpu"})
+del STORED["h3"]["devices"]
+
 built = render(family="h3", prompt="a cat", fast=False)
 _, _, blob = inputs(built)
 check("fast: false is the native row, said so", (blob["loras"], built["speed"]), ([], "native"))

@@ -28,7 +28,8 @@ Request (POST, JSON):
      "pictures": [{"filename": "cat.png", "as": "start"}],   # input/ names
      "seconds": 6, "aspect": "16:9", "short_edge": 768, "seed": 7,
      "fast": true, "turbo_lora": null, "merged": false, "quality": null,
-     "models": {"clip": "..."}}      # a slot's file, over this machine's picks
+     "models": {"clip": "..."},      # a slot's file, over this machine's picks
+     "devices": {"clip": "cuda:1"}}  # where a slot loads, over this machine's pins
 
 A picture is cited in the prompt as `@pic-1` (`@clip-1`, `@snd-1` for video and
 sound), numbered in the order sent; one that is not cited rides anyway. `as` is
@@ -127,11 +128,16 @@ def _request(body):
                        **({"short_edge": edge} if edge else {})})
     overrides = {k: v for k, v in (body.get("models") or {}).items() if isinstance(v, str)}
     if still:
+        if body.get("devices"):
+            raise headless.HeadlessError(
+                "devices is for a video family; a picture family loads where ComfyUI puts it.")
         piece = {"version": 1, "arch": rail["still_arch"], "loras": [], "turbo": {},
                  "models": {rail["still_arch"]: overrides}}
     else:
+        devices = {k: v for k, v in (body.get("devices") or {}).items()
+                   if isinstance(k, str) and isinstance(v, str)}
         piece = {"version": 2, "family": family_id, "loras": [], "turbo": {},
-                 "models": overrides}
+                 "models": {**overrides, **({"devices": devices} if devices else {})}}
     seed = body.get("seed")
     widgets = {"seed": int(seed)} if isinstance(seed, int) and not isinstance(seed, bool) else {}
     return action, ledger, rail, (piece, widgets), family, still

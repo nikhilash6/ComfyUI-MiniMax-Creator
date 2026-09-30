@@ -381,8 +381,14 @@ def _build(action, ledger, rail, stored, base, strip=None, cast=None):
         # `models.Weights.from_blob` reads the precision, the route and the
         # pinned devices out of the same dict. The node's block, with what the
         # machine remembers filling its empty rows.
-        piece["models"] = {**((stored or {}).get(family["id"]) or {}),
-                           **(piece.get("models") or {}), **picked}
+        remembered = (stored or {}).get(family["id"]) or {}
+        piece["models"] = {**remembered, **(piece.get("models") or {}), **picked}
+        # Pins merge slot by slot: a request pinning one slot keeps the
+        # machine's pins for the others rather than dropping them all.
+        devices = {**(remembered.get("devices") or {}),
+                   **((piece.get("models") or {}).get("devices") or {})}
+        if devices:
+            piece["models"]["devices"] = devices
 
     try:
         if still:

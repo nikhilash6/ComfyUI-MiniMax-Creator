@@ -42,6 +42,12 @@ python3 skills/continuity-render/render.py krea2 "a tabby cat, studio portrait" 
   actually uses. `--quality draft|medium|good` picks the step count.
   `--native` renders at the family's full step count instead, which for video
   can take many times longer.
+- **GPUs.** Each model loads where this machine's remembered weights pin it:
+  the device you last picked for that slot on the node's weights popover
+  (ComfyUI-MultiGPU). With nothing pinned everything shares ComfyUI's default
+  card, which on a two-card box means the text encoder and the video model swap
+  in and out of one GPU. `--device SLOT=DEVICE` pins a slot for one render
+  (`--device clip=cuda:1`). The queued line says where each slot loads.
 - **Clip or picture.** Video families make a clip, and image families (Krea 2,
   Ideogram 4, Qwen, Flux 2 Klein) make a picture.
 
@@ -128,7 +134,7 @@ whether it is ready, the files it would use, and what a fast render would use.
 {"family": "h3", "prompt": "@pic-1 walks off", "pictures": [{"filename": "cat.png", "as": "start"}],
  "seconds": 6, "aspect": "16:9", "short_edge": 768, "seed": 7,
  "fast": true, "quality": "good", "turbo_lora": null, "merged": false, "still": false,
- "models": {"clip": "some_encoder.safetensors"}}
+ "models": {"clip": "some_encoder.safetensors"}, "devices": {"clip": "cuda:1"}}
 ```
 
 Only `family` and `prompt` are required. It answers
