@@ -38,6 +38,7 @@ from . import neural, refmod
 from .compile import HANDLE_RE, CompileError, collect_triggers, merge_loras
 from .families import registry
 from .families.h3 import subjects
+from .screens import spec as screen_spec
 
 # The architectures this shared half serves: the families that render nothing
 # but stills, asked of the registry rather than written down — H3's still branch
@@ -161,6 +162,11 @@ class ImagePayload:
     # never need the blob — the same reason the checkpoint field is resolved
     # above rather than in the graph.
     neural: dict = None
+    # The screens this still replaces (`creator/screens`), as
+    # `Screen.to_json()` dicts. Their trackers are the last entries of `refs`;
+    # the screen node between decode and save reads this. Empty on a still
+    # without screens, which keeps every such payload the bytes it was.
+    screens: tuple = ()
 
 
 def neural_block(data):
@@ -643,6 +649,34 @@ def compile_prestage(data, family, image_size_lookup=None):
         source = ratio if (init is not None and image_size_lookup is not None) else None
         width, height, ref_resolution = fit(width, height, source)
 
+    # The screens: one tracker per screen after the user's own pictures, so
+    # theirs keep the numbers they were cited by, and a sentence each saying
+    # what the screen shows. Last, after the init promotion and the framing,
+    # neither of which a tracker takes part in.
+    try:
+        screens = screen_spec.parse(data.get("screens"))
+    except screen_spec.ScreenError as exc:
+        raise CompileError(str(exc)) from exc
+    if screens:
+        if not family.TAKES_REFS:
+            raise CompileError(
+                "this model cannot be shown a screen tracker — screen replacement "
+                "needs one that takes reference pictures")
+        limit, reason = ref_limit(family, data)
+        if len(refs) + len(screens) > limit:
+            raise CompileError(
+                f"{len(refs)} pictures and {len(screens)} screen tracker"
+                f"{'s' if len(screens) > 1 else ''} is more than this model reads "
+                f"({limit}: {reason}) — take a picture off, or a screen")
+        trackers = [(screen_spec.handle_for(index), screen.tracker_file, None, {})
+                    for index, screen in enumerate(screens)]
+        if not refs and hasattr(family, "check_refs"):
+            family.check_refs(data, trackers, loras)
+        citation = refs_citation(family)
+        labels = [citation.format(n=len(refs) + index + 1) for index in range(len(screens))]
+        prompt = f"{prompt.rstrip()} {screen_spec.clauses(screens, labels)}"
+        refs = refs + trackers
+
     checkpoint_field, schedule = family.plan(data)
 
     return ImagePayload(
@@ -654,4 +688,5 @@ def compile_prestage(data, family, image_size_lookup=None):
         framing=framed, mods=mods,
         schedule=schedule or {}, ratio_clamped=ratio_clamped,
         ref_resolution=ref_resolution, neural=neural_block(data),
+        screens=tuple(screen.to_json() for screen in screens),
     )

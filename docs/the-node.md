@@ -281,6 +281,46 @@ sentence that named the old name is rewritten to the new one. Removing a
 member removes only what they were built out of (their pictures, voice,
 movement clips); footage they were cast into stays attached.
 
+## Screens
+
+When a shot has a phone, a tablet, a laptop, a monitor or a TV in it that
+should show something specific, press **Add screen** on the rail and pick the
+picture or clip it should show. The model never sees your file. It is shown a
+flat green placeholder and told the screen shows exactly that, and after the
+render the screen pass finds the green in every frame and puts your file on
+it. Text on the screen comes out as sharp as the file itself, even on a fast,
+low-resolution render.
+
+Press a screen's chip to set it up. The pair at the top of the popover is the
+whole idea: what the model is shown on the left, what replaces it on the
+right. Under it:
+
+- **Device** sets the placeholder's shape, from a tall phone to a 16:9 TV, or
+  any ratio up to 4:1 as **Custom**.
+- **Fit** fills the screen and crops what overhangs, fits the whole file in
+  with black bars, or stretches it.
+- For a clip: where it **starts**, what happens **if it runs out** (hold the
+  last frame, loop, or go back to the first), and whether it keeps playing or
+  starts over **at a cut** the model makes inside the shot.
+
+A shot can have two screens. The second is keyed in a second colour, so the
+two can be told apart. Anything that passes in front of a screen (a hand, a
+person walking by) stays in front of it. H3's own dynamic island stays on top
+of a phone screen; its home bar is covered.
+
+Screens work on MiniMax H3 and on every still model that takes reference
+pictures (Qwen Image Edit, Flux 2 Klein, Qwen Image 2.1, and Krea 2 with its
+reference adapter). Each screen takes one reference slot. They are not
+available on LTX 2.5, whose references ride as one sheet, or on a pass that
+merges several cards.
+
+The placeholder's colour and markers are a setting (**Settings → Rendering →
+Screens**). Plain green is the default and came out cleanest. White with a
+marker grid follows a screen better while something covers most of it for a
+long stretch. **Screen files** there can also keep the raw render and an
+overlay of what the pass saw, beside the finished file, for when a screen comes
+out wrong.
+
 ## Spoken lines
 
 Close a quote in the prompt and a small menu opens:

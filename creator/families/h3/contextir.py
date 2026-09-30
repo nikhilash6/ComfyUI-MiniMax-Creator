@@ -134,6 +134,14 @@ _DEFINE = {
                              "angle and camera come from this description, and the "
                              "sheet itself, its grid and its frames are never shown.",
 
+    # A screen's tracker (`creator/screens`). What the line has to stop is the
+    # model treating a flat colour as a picture of a screen to improve on: the
+    # UI it would invent, the scrolling, the glow. It is replaced after decode,
+    # so the only thing that matters is that it arrives as it was sent.
+    ("image", "screen"): "%s is the display shown on a device screen in the "
+                         "target video: it appears on that screen exactly as it "
+                         "is, flat, uniform and unchanging, and nowhere else.",
+
     ("video", "full"): "%s is a reference video.",
     ("video", "person"): "%s is a person reference: the face, hair, build and "
                          "clothing of the person in it are retained, and the "
@@ -339,6 +347,7 @@ _MARKER = {
     ("image", "scene"): "fully_preserved",
     ("image", "style"): "fully_preserved",
     ("image", "motion"): "attribute_transfer",
+    ("image", "screen"): "fully_preserved",
     # ("image", "storyboard") is the piece's to choose: `storyboard_hold`.
 
     ("video", "full"): "fully_preserved",
@@ -367,6 +376,7 @@ _MARKER = {
 # subject's says where it appears. Absent means no parenthetical at all.
 _SCOPE_NOTE = {
     ("image", "storyboard"): "the shots before this one",
+    ("image", "screen"): "screen display",
     ("video", "camera"): "camera and pacing structure",
     ("video", "edit"): "source video",
     ("video", "continue"): "continuation point",
@@ -384,6 +394,8 @@ _BECOMES = {
     ("image", "scene"): "the place, its surfaces and its light are carried into "
                         "the target video and whoever stood in it is not",
     # ("image", "storyboard") is `STORYBOARD_BECOMES`, or the piece's own line.
+    ("image", "screen"): "it is shown on the device screen exactly as it is, "
+                         "flat and static",
     ("image", "style"): "the medium, palette, light and rendering are carried "
                         "into the target video and the source's own subject is not",
     ("image", "motion"): "the action and pose are carried onto the target "

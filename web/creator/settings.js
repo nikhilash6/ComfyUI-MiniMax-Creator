@@ -37,6 +37,8 @@ import { t } from "./i18n.js";
 import { CLOCK_TOKENS, FRAME_TOKENS, cleanPrefix, folderOf, stemOf, examplePath,
          splitTokens, tokenLabel, tokenValues } from "./outputs.js";
 import { FAMILIES } from "./manifest.js";
+import { trackerPicture } from "./screens.js";
+import { DEFAULT_STYLE, cleanStyle, colourOf } from "./screenspec.js";
 
 // libx264's own quality scale: lower is better and bigger, and six points is
 // roughly double the file size. Four points on it, because the encoder's full
@@ -83,6 +85,52 @@ const MOTION_GATE = [
   { value: 4, label: "Fastest only",
     note: "Just under the kick. A brisk gesture is left alone, and a burst "
         + "slower than that kick may be too." },
+];
+
+// The screen tracker's key colours and marker patterns, each with what it was
+// seen to do on the lab on 2026-09-30 — white against magenta on one seed,
+// then plain green, which came out cleanest and is the default.
+const TRACKER_COLOURS = [
+  { value: "white", label: "White",
+    note: "Came back flat and unclipped, and lights the hand the way a lit screen "
+        + "does. White walls and paper compete, and the markers are what tell the "
+        + "screen apart from them — so not with no markers." },
+  { value: "magenta", label: "Magenta",
+    note: "Throws a pink cast on the thumb and bezel, which the pass then has to "
+        + "take back out, and H3 drew faint patterns inside it that carry onto the "
+        + "content. For scenes full of white." },
+  { value: "green", label: "Green",
+    note: "The default, with no markers: the way a screen is shot on set, and the "
+        + "cleanest on the lab. The brightest cast of the four, which the pass takes "
+        + "back out; plants and green clothing compete." },
+  { value: "blue", label: "Blue",
+    note: "The weakest cast, and a cool one reads as ordinary screen light. Skies, "
+        + "denim and blue light compete." },
+];
+
+const TRACKER_PATTERNS = [
+  { value: "grid", label: "Grid",
+    note: "Nine squares and four upward triangles: thirteen points to check the "
+        + "fit against, and the triangles say which way is up when the device "
+        + "turns." },
+  { value: "plus", label: "Crosses",
+    note: "A cross in each corner and a large plus in the middle, which holds up "
+        + "best under motion blur. The same upside down, so a screen held upside "
+        + "down is read the right way up." },
+  { value: "none", label: "None",
+    note: "The default. Just the colour, the way a screen is shot green on set. Nothing on it "
+        + "for the model to draw slightly off, so nothing to leave a sliver of; "
+        + "the screen is followed by its four edges, and a frame where something "
+        + "covers more than one of them is filled in from the frames around it." },
+];
+
+const SCREEN_DEBUG = [
+  { value: false, label: "Finished file",
+    note: "One file, as a render always writes." },
+  { value: true, label: "Also raw and overlay",
+    note: "Two more files beside it: the render before the screens went in, "
+        + "and what the pass saw — the new content's matte in green, what stayed "
+        + "on top in red, and the screen it followed." },
 ];
 
 const LEAD_IN = [
@@ -663,13 +711,19 @@ class SettingsPage {
       return;
     }
     if (this.neural === null && !this.neuralBusy) this.loadNeural();
+    // The page is rebuilt whole on every change, and a scroller emptied for an
+    // instant forgets where it was: a press halfway down the page threw the
+    // reader back to the top of its group. Where it was is put back.
+    const top = this.page.scrollTop;
     this.page.replaceChildren(
       this.groupBlock("output", [this.qualityCard(), ...this.folderCards()]),
-      this.groupBlock("rendering", [this.seamsCard(), this.passesCard(), this.cacheCard()]),
+      this.groupBlock("rendering", [this.seamsCard(), this.passesCard(), this.screensCard(),
+                                    this.cacheCard()]),
       this.groupBlock("nodes", [this.nodesCard()]),
       this.groupBlock("interface", [this.interfaceCard()]),
       this.groupBlock("data", this.storedCards()),
     );
+    this.page.scrollTop = top;
   }
 
   // ---- output ---------------------------------------------------------------
@@ -775,6 +829,76 @@ class SettingsPage {
       }));
     }
     return this.card("Seams", rows);
+  }
+
+  /**
+   * What a screen's tracker looks like: the placeholder the model is shown in
+   * place of the content a screen should carry (`creator/screens`).
+   *
+   * Per machine rather than per card, because it says how this machine renders
+   * a screen and not what the screen shows — and it still reaches the render:
+   * the tracker is a reference picture and the prompt describes it, so a change
+   * re-renders every shot with a screen in it. The picture in front of the
+   * choices is the tracker exactly as the model will be handed it.
+   */
+  screensCard() {
+    const style = cleanStyle(this.settings.screen_tracker ?? DEFAULT_STYLE);
+    const set = (patch) => this.set({ screen_tracker: { ...style, ...patch } });
+    // The colour buttons wear a swatch of what they pick.
+    const swatch = (value) => {
+      const [r, g, b] = colourOf(value).fill;
+      return el("span", { class: "mmc-set-swatch", style: { background: `rgb(${r}, ${g}, ${b})` } });
+    };
+    // And above both rows, the tracker in force at a size it can be read at,
+    // on a phone and on a laptop: what the model will be handed, which is the
+    // thing the two rows are choosing.
+    const specimen = el("div", { class: "mmc-set-trackers" }, [
+      ...[["Smartphone", { width: 1080, height: 2340 }, 150],
+          ["Laptop", { width: 1920, height: 1200 }, 184]].map(([label, size, long]) =>
+        el("figure", { class: "mmc-set-tracker" }, [
+          trackerPicture(style, size, long),
+          el("figcaption", { text: t(label) }),
+        ])),
+      el("p", { class: "mmc-set-tracker-note",
+                text: t("What the model is shown on a screen you are replacing. Your picture "
+                      + "or clip goes on after the render, so its text stays sharp.") }),
+    ]);
+    return this.card("Screens", [
+      specimen,
+      this.row({
+        key: "screen_tracker.colour",
+        name: "Tracker colour",
+        hint: "What the model draws on a screen you are replacing.",
+        ...this.segment({
+          options: TRACKER_COLOURS,
+          value: style.colour,
+          mark: swatch,
+          also: "A second screen on the same shot takes the next colour along. Read "
+              + "when a render is queued.",
+          apply: (value) => set({ colour: value }),
+        }),
+      }),
+      this.row({
+        key: "screen_tracker.pattern",
+        name: "Tracker markers",
+        ...this.segment({
+          options: TRACKER_PATTERNS,
+          value: style.pattern,
+          apply: (value) => set({ pattern: value }),
+        }),
+      }),
+      this.row({
+        key: "screen_debug",
+        name: "Screen files",
+        hint: "What a render with a screen in it writes.",
+        ...this.segment({
+          options: SCREEN_DEBUG,
+          value: this.settings.screen_debug === true,
+          also: "For finding out why a screen came out wrong. Read when a render is queued.",
+          apply: (value) => this.set({ screen_debug: value }),
+        }),
+      }),
+    ]);
   }
 
   /**
@@ -1778,7 +1902,8 @@ class SettingsPage {
   }
 
   segment({ options, value, apply, shown = null, unit = null, custom = () => t("Custom"),
-            said = null, also = null, warn = false, disabled = false, report = false }) {
+            said = null, also = null, warn = false, disabled = false, report = false,
+            mark = null }) {
     let offered = options;
     if (!options.some((option) => option.value === value)) {
       const own = { value, label: custom(value), note: CUSTOM_NOTE, custom: true };
@@ -1806,7 +1931,13 @@ class SettingsPage {
         disabled: disabled || null,
         title: title || null,
         onclick: () => !on && apply(option.value),
-      }, [el("span", { class: "mmc-set-seg-in", text: option.custom ? option.label : t(option.label) })]);
+      }, [mark && !option.custom
+        // `mark` draws a small picture of the option in front of its word —
+        // the screen tracker's colours — where a word alone names a thing you
+        // have to imagine.
+        ? el("span", { class: "mmc-set-seg-in mmc-set-seg-marked" },
+             [mark(option.value), el("span", { text: t(option.label) })])
+        : el("span", { class: "mmc-set-seg-in", text: option.custom ? option.label : t(option.label) })]);
     });
     const control = el("div", { class: `mmc-set-seg${disabled ? " off" : ""}` }, [
       el("div", { class: "mmc-set-seg-row", role: "group" }, buttons),

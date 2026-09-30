@@ -379,6 +379,8 @@ def emit(plan, weights, sampling, unique_id, filename_prefix=FILENAME_PREFIX,
     clip = graph.node("VAEDecode", samples=still, vae=links.vae).out(0)
     image = graph.node("ImageFromBatch", image=clip, batch_index=0, length=1).out(0)
     image = render_image.refined(graph, image, plan.neural)
+    image = render_image.screened(
+        graph, image, [screen.to_json() for screen in compiled[0].screens], unique_id)
     save = graph.node(SAVE_NODE, images=image, filename_prefix=filename_prefix)
     # The save node lives in an expanded graph on nobody's canvas; the stamp
     # files its result under the PreStage the user is looking at, which is what

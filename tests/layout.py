@@ -85,6 +85,12 @@ MODULES = {
     # one so its own relative imports resolve.
     "mlxdlss": "mlxdlss",
     "vdnh3": "vdnh3",
+    # Screen replacement: a package, so its modules import one another
+    # relatively. `screen_spec` is pure; the other two need numpy and scipy.
+    "screen_spec": "screens.spec",
+    "screen_tracker": "screens.tracker",
+    "screen_track": "screens.track",
+    "screen_composite": "screens.composite",
     # Route modules. Importing one registers its handlers on `PromptServer`,
     # which `stub_server()` stands in for.
     "neural_route": "routes.neural",

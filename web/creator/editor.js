@@ -17,6 +17,7 @@ import { isVisualReference, previewable, openReferencePreview } from "./referenc
 import { castFamilies, keepAsMod } from "./refmod.js";
 import { t } from "./i18n.js";
 import { openPicker } from "./picker.js";
+import { screenChips, screenTool } from "./screens.js";
 import { openLoras, loraBlock, settlePins } from "./loras.js";
 import { openSettings } from "./settings.js";
 import { openPresetLibrary, styleCastMember } from "./presetlib.js";
@@ -851,6 +852,22 @@ export class CreatorEditor {
    * nothing to say about it. The capacity handed to the picker is the real
    * limit instead: one drawing, because the branch injects one control latent.
    */
+  /** A file for a screen to show: one picture or clip, from anywhere the
+   *  picker reaches. It costs no reference slot — the file never reaches the
+   *  model — so the picker is told there is room. -> `{path, kind}` or null. */
+  async pickScreenContent(kind = null) {
+    const chosen = await openPicker({
+      kinds: ["image", "video", "renders"],
+      aspect: this.pickerAspect(),
+      kind: kind ?? "image",
+      capacity: () => ({ used: 0, max: 1, filesLeft: 1 }),
+      single: true,
+      cardSeconds: this.cardSeconds(),
+    });
+    const row = chosen?.[0];
+    return row ? { path: row.path, kind: row.kind === "video" ? "video" : "image" } : null;
+  }
+
   async addGuide() {
     const existing = S.guideAsset(this.state);
     const chosen = await openPicker({
@@ -2109,6 +2126,15 @@ export class CreatorEditor {
           onclick: () => this.addGuide(),
         }, [el("span", { class: "mmc-tool-icon" }, [icon("pen")]),
             el("span", { text: t("Add guide") })])] : []),
+        // A screen in the shot that should show a file of yours. Beside the
+        // attach tools because it is the same gesture — pick a file — though
+        // the file never reaches the model: a tracker does, and the file goes
+        // on after the render (`screens.js`). Only where the family can be
+        // shown a tracker; a family that cannot has no such tool.
+        ...(S.canDo(this.piece, "screens") ? [screenTool({
+          state: this.state, commit: () => this.commit(),
+          pick: (kind) => this.pickScreenContent(kind),
+        })] : []),
         // LoRAs sit on the checkpoint, not in the reference slots, so no
         // attach rule ever gates them.
         el("button", {
@@ -2265,8 +2291,14 @@ export class CreatorEditor {
    *  every render, without the caret ever leaving the box (#92). */
   renderAssetsRow() {
     const state = this.state;
+    // The screens under the attachments, and drawn whatever the family: a
+    // screen carried onto one that cannot render it is refused by the
+    // compiler, and the chip is where it is taken off.
+    const screens = screenChips({ state, commit: () => this.commit(),
+                                  pick: (kind) => this.pickScreenContent(kind) });
     this.assetsHost.replaceChildren(
-      ...(state.assets.length || S.citedPool(state).length ? [this.renderAssets()] : []));
+      ...(state.assets.length || S.citedPool(state).length ? [this.renderAssets()] : []),
+      ...(screens ? [screens] : []));
   }
 
   renderAssets() {

@@ -34,11 +34,13 @@ import json
 
 from comfy_api.latest import io
 
-from . import canvas, compile_image, media, neural, refmod, render_image, sampling, variations
+from . import (canvas, compile_image, media, neural, refmod, render_image, sampling,
+               settings, variations)
 from .core import emit as loop
 from .compile import CompileError
 from .families import registry
 from .families.h3 import still, subjects
+from .screens import spec as screen_spec
 from .families.h3 import declare as h3_rules
 from .families.ideogram4 import still as ideogram4
 from .families.krea2 import still as krea2
@@ -193,7 +195,10 @@ class MiniMaxH3PreStage(io.ComfyNode):
                     stamps.append(None)
         except Exception:
             pass
-        return (prestage_data, tuple(stamps))
+        # The screen tracker is this machine's and reaches the render — see
+        # `MiniMaxH3Creator`'s fingerprint.
+        return (prestage_data, tuple(stamps),
+                tuple(sorted(settings.screen_tracker().items())))
 
     @classmethod
     def execute(cls, prestage_data, seed, steps, cfg, sampler_name, scheduler) -> io.NodeOutput:
@@ -232,6 +237,21 @@ class MiniMaxH3PreStage(io.ComfyNode):
         # verbs. H3's answer is a video render that keeps one latent frame —
         # same widgets, same blob, same save node; everything between them is
         # the other pipeline (`families/h3/still.py`).
+        # The screens' trackers as this machine draws them (`settings`),
+        # stamped on before compiling so they are part of what the render is.
+        # The image arches keep screens on the blob; the H3 branch in its
+        # request, like everything else of the Creator's.
+        if data.get("screens"):
+            data = {**data, "screens": screen_spec.stamp(data["screens"],
+                                                         settings.screen_tracker())}
+        h3_block = data.get(still.ARCH)
+        if isinstance(h3_block, dict) and isinstance(h3_block.get("request"), dict) \
+                and h3_block["request"].get("screens"):
+            request = h3_block["request"]
+            data = {**data, still.ARCH: {**h3_block, "request": {
+                **request, "screens": screen_spec.stamp(request["screens"],
+                                                        settings.screen_tracker())}}}
+
         arch = data.get("arch", registry.DEFAULT_STILL_ARCH)
         family = registry.still(arch)
         if family is None:

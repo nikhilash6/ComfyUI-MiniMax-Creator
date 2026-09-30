@@ -321,7 +321,18 @@ def refined(graph, image, request):
     return neuralpass.emit_still(graph, image, request)
 
 
-def emit_tail(graph, samples, vae, unique_id, filename_prefix, request=None):
+def screened(graph, image, screens, unique_id):
+    """`image` through the screen node when the still replaces screens; else as
+    is. `screens` is the payload's `Screen.to_json()` dicts."""
+    if not screens:
+        return image
+    from .screens import node as screen_node, spec as screen_spec
+
+    return screen_node.emit_still(
+        graph, image, [screen_spec.Screen.from_json(s) for s in screens], 0, unique_id)
+
+
+def emit_tail(graph, samples, vae, unique_id, filename_prefix, request=None, screens=()):
     """Decode, refine if asked, and save — reported against the node the user
     is looking at.
 
@@ -334,9 +345,13 @@ def emit_tail(graph, samples, vae, unique_id, filename_prefix, request=None):
     None. On, the refine node sits between the decode and the save, so the
     file written is the refined picture and the stage shows it; off or absent,
     the graph is exactly what it was before the refiner existed.
+
+    `screens` is the payload's screens, replaced after the refiner for the
+    reason the video pass runs last: the refiner would re-draw their text.
     """
     image = graph.node("VAEDecode", samples=samples, vae=vae).out(0)
     image = refined(graph, image, request)
+    image = screened(graph, image, screens, unique_id)
     save = graph.node(SAVE_NODE, images=image, filename_prefix=filename_prefix)
     save.set_override_display_id(unique_id)
     return save

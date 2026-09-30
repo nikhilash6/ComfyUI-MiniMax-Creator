@@ -42,6 +42,8 @@ class H3Grammar(grammar.Grammar):
     max_audios = 3
     max_files = 12
 
+    takes_screens = True
+
     # References are encoded *for* Ref2VA, so any citation routes there; every
     # other shape lands on FL2VA. Mirrors the manifest's `routes` block, which
     # is what the frontend draws the badge from.

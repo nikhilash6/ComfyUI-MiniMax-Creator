@@ -25,6 +25,7 @@ from . import sound
 from . import variations
 from .families import grammar, registry
 from .families.h3 import contextir, declare as h3, subjects
+from .screens import spec as screen_spec
 
 # Two bounds, on two different quantities, and only the second one is about work.
 #
@@ -517,6 +518,11 @@ class Compiled:
     # family's own. `width`/`height` above are what was sampled; this is what the
     # finished file is, and it is the one upscale mode where those differ.
     redetail: ReDetail | None = None
+    # The screens this shot replaces (`creator/screens`), each a
+    # `screen_spec.Screen`. Their trackers are already in `ref_images`, under
+    # `screen_spec.handle_for(i)`; this is what the screen pass reads after
+    # decode — which file each screen shows, and how.
+    screens: tuple = ()
 
     def encodes_video(self):
         """Whether building this segment's conditioning calls `vae.encode`.
@@ -1636,6 +1642,30 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
     ref_videos = [a for a in refs if a.kind == "video" and a.track != "sound"]
     ref_audios = [a for a in refs if a.kind == "audio" or (a.kind == "video" and a.track == "sound")]
 
+    # The screens: one tracker per screen, as one more picture reference each.
+    # After the user's own pictures, so every file they attached keeps the
+    # `<Picture N>` it had, and before the storyboard, which rides last.
+    try:
+        screens = screen_spec.parse(data.get("screens"))
+    except screen_spec.ScreenError as exc:
+        raise CompileError(str(exc)) from exc
+    if screens:
+        if not family_grammar.takes_screens:
+            raise CompileError(
+                "this family cannot be shown a screen tracker — screen "
+                "replacement needs one that takes reference pictures one by one")
+        if len(ref_images) + len(screens) > family_grammar.max_images:
+            raise CompileError(
+                f"this shot already cites {len(ref_images)} pictures, and its "
+                f"{len(screens)} screen{'s' if len(screens) > 1 else ''} need"
+                f"{'' if len(screens) > 1 else 's'} "
+                f"{len(screens)} more of the {family_grammar.max_images} — take a "
+                f"picture off it, or a screen")
+        ref_images = ref_images + [
+            Asset(handle=screen_spec.handle_for(index), kind="image", role="reference",
+                  filename=screen.tracker_file, takes=screen_spec.TAKE)
+            for index, screen in enumerate(screens)]
+
     if storyboard:
         if any(a.handle == STORYBOARD_HANDLE for a in assets):
             raise CompileError(
@@ -1764,6 +1794,15 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
     # In front of the *body*, not of the finished prompt: the keyframe-alignment
     # instruction has to be the prompt's first line, so words prefixed above it
     # would push it out of position.
+    # What each screen shows, said in the body rather than only in the derived
+    # sections: a refined `subject_definitions` replaces the derived one whole,
+    # and the sentence telling the model to leave the screen alone is the one
+    # that must survive a rewrite.
+    if screens:
+        clause = screen_spec.clauses(
+            screens, [labels[screen_spec.handle_for(i)] for i in range(len(screens))])
+        body = f"{body.rstrip()} {clause}" if body.strip() else clause
+
     triggers = collect_triggers(active_loras(data.get("loras"), checkpoint, family))
     if triggers:
         prefix = ", ".join(triggers)
@@ -2044,6 +2083,7 @@ def compile_request(data, image_size_lookup=None, continues=False, canvas_spec=N
         face=face,
         motion_fix=bool(motion_fix),
         redetail=redetail_pass,
+        screens=screens,
     )
 
 
@@ -4150,6 +4190,18 @@ def group_payload(data, start=0, end=None):
     _agree([face_label(face) for face in faces], "the face pass")
     if faces[0]:
         request["face"] = faces[0]
+    # Screens ride on a pass of one card as they would on the card. Over several
+    # merged cards they would have to follow the shot list's own cuts, one
+    # screen to each card's stretch of the clip, and nothing says which card a
+    # stretch belongs to until after it is decoded — so that is refused by name
+    # rather than guessed.
+    if any(segment.get("screens") for segment in group):
+        if len(group) > 1:
+            raise CompileError(
+                f"cards {first_number}-{last_number} are merged into one pass, and "
+                f"screens on a merged pass are not supported — take the screens "
+                f"off, or split the cards into passes of their own")
+        request["screens"] = group[0]["screens"]
     # One pass is one reference pool, so the reference form's analysis sections
     # describe the whole clip and are the timeline's rather than a shot's. Only
     # the sections: the body is the assembled shot list above.

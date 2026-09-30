@@ -327,6 +327,17 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
                     for payload, number in zip(payloads, numbers)]
     compiled = compile_all(family, payloads, labels)
     _refuse_mismatched_parts(payloads, compiled)
+    # The screens' trackers are reference pictures like any other, read off
+    # input/ by the segment node — so they are drawn onto disk here, before a
+    # node that reads them exists. Keyed by what decides their pixels, so this
+    # is a file check on every render after the first.
+    screening = {index: one.screens for index, one in enumerate(compiled)
+                 if one is not None and one.screens}
+    if screening:
+        from ..screens import tracker as screen_tracker
+
+        for screens in screening.values():
+            screen_tracker.ensure_all(screens)
     where = family.routes(compiled, labels)
     if finish is not None:
         # The finishing pass may sample on a checkpoint no card routes to.
@@ -339,11 +350,14 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
     # the piece's own file (see `MiniMaxH3Save._takes`), and not under
     # ReDetail, which rebuilds the reel at another size after the loop — there
     # the save node keeps writing the takes from the reel it actually saved.
+    # The same for every pass that rewrites the reel after the loop, the screen
+    # pass among them: a take written before it would still show the tracker.
     redetailing = any(one is not None and one.redetail for one in compiled)
     refining = bool(neural)
     finishing = finish is not None and family.finishes
     per_pass_takes = (bool(cards) and len(payloads) > 1
-                      and not redetailing and not refining and not finishing)
+                      and not redetailing and not refining and not finishing
+                      and not screening)
 
     # The face pass's conditioning is a second compile of the same segment at
     # the crop canvas, and dropping the keyframes can land it on the other
@@ -621,6 +635,27 @@ def emit(family, payloads, labels, weights, sampling, acceleration, unique_id,
         from .. import neuralpass
 
         reel = neuralpass.emit(graph, reel, neural, seed_for(0))
+
+    # The screens, last of all — after ReDetail and the refiner, which would
+    # both re-draw text that is meant to be the source file's own, and at the
+    # size the reel leaves at. See `screens/node.py`. Nothing is emitted for a
+    # piece with no screens on it.
+    if screening:
+        from ..screens import node as screen_node
+
+        # The debug switch keeps what the pass started from and what it saw,
+        # beside the finished file (`settings.screen_debug`). Neither save is
+        # stamped with the node's id, so the stage keeps showing the finished
+        # render and not whichever of the three wrote last.
+        debug = settings.screen_debug()
+        screened = screen_node.emit(graph, reel, screening, seed_for(0), unique_id,
+                                    debug=debug)
+        if debug:
+            for suffix, source in (("raw", reel), ("screens", screened.out(1))):
+                graph.node(SAVE_NODE, reel=source, fps=float(family.rules.fps),
+                           filename_prefix=f"{filename_prefix}-{suffix}",
+                           crf=settings.video_crf(), takes="")
+        reel = screened.out(0)
 
     # What the save node needs to keep each pass as a take: which card it is
     # and what seed it ran on. Only where the passes did not write their own

@@ -72,6 +72,12 @@ class Grammar:
     max_audios = 0
     max_files = 0
 
+    #: Whether a screen's tracker can ride in as one more reference picture
+    #: (`creator/screens`). A reference-taking family is not enough: the
+    #: tracker has to reach the encoder as a picture of its own, and a family
+    #: that composites its references into one sheet has no slot for it.
+    takes_screens = False
+
     #: The routed slot each mode implies, `{mode name: slot}`, and the slot
     #: everything else lands on. Empty on a family that routes between nothing.
     routes = {}

@@ -30,6 +30,7 @@
 import { el, icon, ICONS, svg, dismissable, keepScroll, placeNear, swappable } from "./dom.js";
 import { DEFAULT_STILL_ARCH, stillFamily } from "./manifest.js";
 import { openPicker } from "./picker.js";
+import { screenChips, screenTool } from "./screens.js";
 import { openLoras, loraBlock, loraBase, settlePins } from "./loras.js";
 import { openFrameGrab } from "./framegrab.js";
 import { openContactSheet } from "./contact.js";
@@ -509,6 +510,18 @@ export class PreStageEditor {
     this.commit();
   }
 
+  /** A file for a screen to show — see `CreatorEditor.pickScreenContent`. */
+  async pickScreenContent(kind = null) {
+    const chosen = await openPicker({
+      kinds: ["image", "video", "renders"],
+      kind: kind ?? "image",
+      capacity: () => ({ used: 0, max: 1, filesLeft: 1 }),
+      single: true,
+    });
+    const row = chosen?.[0];
+    return row ? { path: row.path, kind: row.kind === "video" ? "video" : "image" } : null;
+  }
+
   async addRefs(fromVideo = false) {
     // The same two refusals the `@` menu asks for, said out loud here because
     // this door was pressed rather than typed into.
@@ -795,7 +808,12 @@ export class PreStageEditor {
       ...(state.init ? [this.renderInitChip()] : []),
       ...state.refs.map((ref, slot) => this.renderRefChip(ref, slot)),
     ];
-    this.assetsHost.replaceChildren(...(chips.length ? [keepScroll(el("div", { class: "mmc-assets" }, chips))] : []));
+    // A still's screens, under its pictures — see the Creator's row.
+    const screens = screenChips({ state, commit: () => this.commit(),
+                                  pick: (kind) => this.pickScreenContent(kind) });
+    this.assetsHost.replaceChildren(
+      ...(chips.length ? [keepScroll(el("div", { class: "mmc-assets" }, chips))] : []),
+      ...(screens ? [screens] : []));
     this.renderCastShelf();
     // The arch's pins go on before the row is read — and, since one stack
     // serves every arch on this node, a pin made for another arch comes off.
@@ -944,6 +962,13 @@ export class PreStageEditor {
         tool(t("From video"), "video",
              t("Pull a single frame off a video's playhead — as the init image, saved as a PNG in the input folder."),
              () => this.setInit(true)),
+        // A screen in the picture that should show a file of yours: its
+        // tracker is one more reference picture, so only where the arch reads
+        // pictures at all (`compile_prestage` refuses the rest).
+        ...(refs.reads ? [screenTool({
+          state: this.state, commit: () => this.commit(),
+          pick: (kind) => this.pickScreenContent(kind),
+        })] : []),
         tool(t("Contact sheet"), "gallery",
              t("A strip of footage as one picture, so an edit model can be asked about a "
              + "whole shot at once — and the same tool cuts the edited sheet back into "

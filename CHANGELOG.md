@@ -4,6 +4,29 @@ Back by request. Every entry opens with a line saying what changed; the
 paragraph under it says how and why, and from 3.0 down that paragraph is kept
 exactly as it was written, wall of text and all.
 
+## Unreleased
+
+**Screens: a picture or clip put on a phone, tablet, laptop or TV in the shot,
+with its text as sharp as the file.** A shot can carry up to two screens, each
+a device and a file. The model is never shown the file: each screen's
+placeholder, flat green by default, rides in as one more reference picture with
+a sentence saying the screen shows exactly that and does not change, and after
+decode a screen pass finds it in every frame and composites the file on, at the
+size the reel leaves at and after ReDetail and DLSS 5, which would soften it.
+The screen is followed the way a screen insert is tracked in production: by
+markers on its plane where it has them and by its four edges, forwards and
+backwards from its clearest frame through each shot, with whatever passes in
+front held out rather than followed, so a person walking past a TV stays in
+front of it. Cuts H3 makes inside a shot are found and never smoothed across;
+a frame the screen is lost in takes its place from the frames around it, and a
+pass where most frames fail keeps its raw render and says so on the node. Plain
+green won over magenta and a white marker grid on the lab: the markers left
+slivers where H3 drew them slightly off. The placeholder's colour and markers,
+and whether to also keep the raw render and a debug overlay, are on the
+settings page. Everything is numpy, SciPy and torch, so the pack still has no
+dependencies. The placeholders are drawn into ComfyUI's temp folder, and the
+ones an earlier build left in `input/` are swept.
+
 ## 3.2
 
 **Image to 3D: a picture lifted into a textured mesh, from the tools

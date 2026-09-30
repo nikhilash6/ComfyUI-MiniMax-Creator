@@ -99,11 +99,11 @@ for kind, values in compiler.TAKES.items():
         if (kind, takes) not in contextir._BECOMES:
             FAILURES.append(f"compile offers {key} but contextir says nothing about what becomes of it")
 
-# ...and the reverse, which is a sentence nothing can ever ask for. The one
-# scope the compiler writes itself — the timeline's storyboard of earlier shots,
-# which no picker offers and `_parse_assets` refuses on a file — is held to the
-# same three dictionaries from the other side.
-COMPILER_OWN = {("image", compiler.STORYBOARD_TAKE)}
+# ...and the reverse, which is a sentence nothing can ever ask for. The scopes
+# the compiler writes itself — the timeline's storyboard of earlier shots and a
+# screen's tracker, which no picker offers — are held to the same three
+# dictionaries from the other side.
+COMPILER_OWN = {("image", compiler.STORYBOARD_TAKE), ("image", compiler.screen_spec.TAKE)}
 for key in python_define:
     kind, takes = key.split(":", 1)
     if takes not in compiler.TAKES.get(kind, ()) and (kind, takes) not in COMPILER_OWN:

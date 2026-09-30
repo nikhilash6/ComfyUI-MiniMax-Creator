@@ -126,6 +126,8 @@ export const css = `
   display: inline-block; height: calc(26px * var(--mmc-type)); line-height: calc(26px * var(--mmc-type));
   padding: 0 14px; border-radius: 13px;
 }
+/* A button carrying a picture of its option in front of the word. */
+.mmc-set-seg-marked { display: inline-flex; align-items: center; gap: 7px; padding-left: 10px; }
 .mmc-set-seg-opt:hover:not(:disabled) { color: var(--mmc-text); }
 .mmc-set-seg-opt[aria-pressed="true"] { color: var(--mmc-text); }
 .mmc-set-seg-opt[aria-pressed="true"] .mmc-set-seg-in { background: var(--mmc-surface-3); }

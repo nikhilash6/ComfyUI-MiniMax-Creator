@@ -58,6 +58,7 @@ from . import (accel, canvas, compile as compiler, guide as guides, job_node, li
                media, models, neural, neuralpass, outputs, prestage, redetail,
                redetailpass, refmodnode, sampling, settings, timeline, vdn)
 from .core import emit as loop
+from .screens import node as screen_node, spec as screen_spec
 from .families import registry
 from .families.h3 import declare as h3, facepass, guidepass, hires, motionfix, seamrestore
 
@@ -185,13 +186,16 @@ def _fingerprint(blob):
     piece keeps its reference pool.
 
     The settings are the ones `_render` reads off the file when it builds
-    the graph — the seam handoff, the turbo lead-in and the LoRA loader. They are not node inputs,
+    the graph — the seam handoff, the turbo lead-in, the LoRA loader and the
+    screen tracker. They are not node inputs,
     so without this a changed setting left the node's inputs identical, the
     expansion was a cache hit, and the switch on the settings page did nothing
     until something else about the render moved.
     """
     graph_settings = (settings.seam_handoff(), settings.turbo_lead_in(),
-                      settings.lora_loader())
+                      settings.lora_loader(),
+                      tuple(sorted(settings.screen_tracker().items())),
+                      settings.screen_debug())
     try:
         return (blob, timeline.stamps(compiler.as_piece(json.loads(blob))), graph_settings)
     except Exception:
@@ -274,6 +278,10 @@ def _render(blob, seed, steps, cfg, sampler_name, scheduler,
     # change for it — H3 under VDN-H3 leaves the turbo file out of every stack.
     run = family.run_context(data)
     piece = family.piece_for_run(piece, run)
+    # The tracker each screen is drawn as is this machine's (`settings`), and
+    # written onto the screens here so it is part of what each segment caches
+    # on. A piece without screens comes back as the same object.
+    piece = screen_spec.stamp_piece(piece, settings.screen_tracker())
 
     # One payload per pass, and a pass is a run of merged segments — usually one
     # segment long, and on a piece of one shot there is exactly one of each. How
@@ -418,7 +426,7 @@ class MiniMaxCreatorExtension(ComfyExtension):
                 *timeline.NODES, *registry.segment_nodes(),
                 *prestage.NODES, *hires.NODES, *facepass.NODES, *seamrestore.NODES,
                 *motionfix.NODES, *guidepass.NODES,
-                *redetailpass.NODES, *neuralpass.NODES, *vdn.NODES,
+                *redetailpass.NODES, *neuralpass.NODES, *screen_node.NODES, *vdn.NODES,
                 *refmodnode.NODES, *liftnode.NODES]
 
 

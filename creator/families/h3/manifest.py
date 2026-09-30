@@ -360,6 +360,11 @@ def manifest():
             # own pass (`motionfix.py`, planned by `derope.py`); a family
             # declaring nothing here draws no chip and its loop ignores the flag.
             "motion_fix": True,
+            # Whether a shot can replace screens (`creator/screens`): each
+            # screen's tracker rides in as one more reference picture, so it is
+            # the grammar's `takes_screens` saying so, and the frontend draws
+            # the tool where this is true. `test_screens.py` holds the two alike.
+            "screens": True,
             # Whether a piece can be finished through a guide LoRA — a file
             # trained to map one video to another with the source pinned as an
             # aligned guide (`guidelora.py`, `guidepass.py`). The pill reads

@@ -36,6 +36,7 @@ from server import PromptServer
 from . import (assets, compile as compiler, crop as framing, latents, lift, lorameta, media,
                models, refmod, preview, settings, vdn)
 from .guard import same_origin
+from .screens import spec as screen_spec
 
 # The picker builds its grid lazily and paginates, so the cap only bounds the
 # listing's JSON payload (~2 MB at this size). Newest first, so when a folder
@@ -805,6 +806,9 @@ def compiled_passes(blob, seed=None):
     # sends none, and the braces are shown as they stand.
     if isinstance(seed, (int, float)) and not isinstance(seed, bool):
         blob = compiler.varied_piece(blob, int(seed))
+    # The screens' trackers as this machine draws them, which is what the node
+    # will stamp on before it compiles (`creator_node._render`).
+    blob = screen_spec.stamp_piece(compiler.as_piece(blob), settings.screen_tracker())
     payloads = compiler.timeline_payloads(blob, media.image_size)
     # Which pass each card ended up in. A run of merged cards is one
     # generation with one prompt, so the box has to be able to ask "the pass

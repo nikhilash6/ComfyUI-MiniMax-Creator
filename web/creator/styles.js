@@ -24,6 +24,7 @@ import { css as bench } from "./styles/bench.js";
 import { css as control } from "./styles/control.js";
 import { css as upscale } from "./styles/upscale.js";
 import { css as neural } from "./styles/neural.js";
+import { css as screens } from "./styles/screens.js";
 import { css as loupe } from "./styles/loupe.js";
 import { css as blockout } from "./styles/blockout.js";
 import { css as chat } from "./styles/chat.js";
@@ -58,6 +59,9 @@ const CSS = [
   // The refiner's dials before the room that holds them, so a rail can narrow
   // one of its own rows without the dial sheet winning it back.
   neural,
+  // After the popovers and the settings page it borrows rows and flips from,
+  // so its narrowings of them win.
+  screens,
   loupe,
   blockout,
   // After the bench sheet: the chat room is that room with its rail on the

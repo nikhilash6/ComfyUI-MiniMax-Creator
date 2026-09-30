@@ -8,6 +8,7 @@ import { resolve as resolveVariations } from "./variations.js";
 import { DEFAULT_STILL_ARCH, DEFAULT_VIDEO_FAMILY, STILL_ARCHES,
          UPSCALERS, VIDEO_FAMILIES, family as anyFamily, stillFamily, upscaler, videoFamily } from "./manifest.js";
 import { t } from "./i18n.js";
+import { parseScreens, serializeScreens } from "./screenspec.js";
 // Where files land is not in the blob any more — it is a preference of this
 // machine, in `settings.js`, so a shared workflow does not carry one person's
 // folder names onto another person's disk.
@@ -1839,6 +1840,10 @@ export function parseState(raw) {
       state.refine_steps = clampRefineSteps(state.refine_steps);
       state.face = parseFace(state.face);
       state.neural = parseNeural(state.neural);
+      // The screens this shot replaces (`screens.js`). Absent is none, which
+      // is what every card written before them says.
+      state.screens = parseScreens(state.screens);
+      if (!state.screens.length) delete state.screens;
       state.guide_lora = parseGuideLora(state.guide_lora, pieceFamily(state));
       state.models = parseModels(state.models);
       state.upscale_models = parseUpscalerModels(state.upscale_models);
@@ -2012,6 +2017,9 @@ function serializeCommon(state, family = DEFAULT_VIDEO_FAMILY) {
     ...(state.auto_duration ? { auto_duration: true } : {}),
     // Absent means "follow the mode", so the common case adds nothing.
     ...(state.checkpoint && state.checkpoint !== "auto" ? { checkpoint: state.checkpoint } : {}),
+    // The screens, only where there are some: a card without writes what it
+    // always did, which is what keeps its segment a cache hit.
+    ...(state.screens?.length ? { screens: serializeScreens(state.screens) } : {}),
   };
 }
 
@@ -4514,6 +4522,10 @@ export function parsePreStage(raw) {
       }
       state.turbo = parsePreStageTurbo(state.turbo);
       state.neural = parseNeural(state.neural);
+      // The image arches keep a still's screens on the blob; the H3 branch
+      // keeps them in its request, which `parseState` reads.
+      state.screens = parseScreens(state.screens);
+      if (!state.screens.length) delete state.screens;
       const models = state.models && typeof state.models === "object" ? state.models : {};
       state.models = emptyPreStageModels();
       for (const arch of PRESTAGE_IMAGE_ARCHES) {
@@ -4584,6 +4596,7 @@ export function serializePreStage(state) {
     loras: serializeLoras(state.loras),
     ...serializePreStageTurbo(state.turbo),
     ...serializeNeural(state.neural),
+    ...(state.screens?.length ? { screens: serializeScreens(state.screens) } : {}),
     // "default" names a 20-step preset, not the family's current default.
     // Store the selection explicitly so a changed default cannot change it.
     quality: state.quality,
@@ -6296,7 +6309,9 @@ export function hasReferences(state) {
   // on the timeline. Mirrors what compile's injection makes true. So is the
   // storyboard a card is shown, mirrored onto it by `syncCanvas`.
   return references(state).length > 0 || citedPool(state).length > 0
-    || Boolean(state.storyboardSheet?.length);
+    || Boolean(state.storyboardSheet?.length)
+    // A screen's tracker rides in as a reference picture of its own.
+    || Boolean(state.screens?.length);
 }
 
 /** A timeline segment that starts from the previous segment's last frame. */
@@ -6566,7 +6581,9 @@ function counts(state, piece = null, except = null) {
     .reduce((n, a) => n + (panels ? Math.max(1, a.panels?.length ?? 0) : 1), 0)
     // The storyboard this card is shown is one of its pictures — the compiler
     // refuses a card with no slot left for it, so the count says so first.
-    + (state.storyboardSheet?.length ? 1 : 0);
+    + (state.storyboardSheet?.length ? 1 : 0)
+    // And each screen's tracker, for the same reason (`compile_request`).
+    + (state.screens?.length ?? 0);
   const videos = refVideos(state).length;
   const audios = refAudios(state).length
     + refVideos(state).filter((v) => v.track === "picture+sound").length;

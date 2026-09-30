@@ -2774,6 +2774,10 @@ class Timeline {
     // strip should say at a glance which cards see the piece.
     if (!shared && S.storyboardSheet(this.timeline, index).length) meta.push(t("storyboard"));
     if (loras) meta.push(t(loras === 1 ? "{count} LoRA" : "{count} LoRAs", { count: loras }));
+    // A screen is set up inside the card and replaced after the render, so
+    // nothing else on the strip would say this card has one.
+    const screens = segment.screens?.length ?? 0;
+    if (screens) meta.push(t(screens === 1 ? "{count} screen" : "{count} screens", { count: screens }));
     if (rewrite) meta.push(using ? t("refined") : t("refined (off)"));
 
     // The card's half of the face pass, and only while the piece is running

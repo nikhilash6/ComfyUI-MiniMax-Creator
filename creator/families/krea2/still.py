@@ -276,7 +276,7 @@ def emit_graph(graph, payload, sampling, weights, clip, vae, model, unique_id,
         scheduler=sampling.scheduler, denoise=denoise,
     )
     render_image.emit_tail(graph, sampled.out(0), vae, unique_id, filename_prefix,
-                           request=payload.neural)
+                           request=payload.neural, screens=payload.screens)
 
 
 def _refs_encode(graph, clip, vae, prompt, images, method):

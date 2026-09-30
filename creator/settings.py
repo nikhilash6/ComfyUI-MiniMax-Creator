@@ -38,6 +38,7 @@ import os
 from . import outputs
 from .families.h3 import derope
 from .families import registry
+from .screens import spec as screen_spec
 
 FILE = "continuity.settings.json"
 
@@ -145,6 +146,19 @@ DEFAULTS = {
     # again — the road every render took before any of these existed, kept so
     # the four can be compared on the same strip.
     "seam_handoff": "latent",
+    # What a screen's tracker looks like: `{"pattern", "colour"}`, from
+    # `screens.spec.PATTERNS` and `COLOURS`. The first screen on a shot takes
+    # this colour and a second the next free one. It reaches the render — the
+    # tracker is a reference picture and the prompt describes it — and sits
+    # here anyway, like the turbo lead-in: it says how this machine renders a
+    # screen, not what the screen shows. The node stamps it onto each screen
+    # before compiling (`screens.spec.stamp`), so a change re-runs the pass.
+    "screen_tracker": dict(screen_spec.DEFAULT_STYLE),
+    # Whether a render with screens also keeps the raw render and a view of
+    # what the screen pass saw — its matte, what stayed on top, the tracked
+    # screen — as two more files beside the finished one. For finding out why
+    # a screen went wrong; off, a render writes the one file it always did.
+    "screen_debug": False,
     # Which loader puts an H3 piece's LoRAs on its quantized checkpoint.
     # "vendored": the pack's stack, which keeps the int8 bake as it is and runs
     # each file as an exact bf16 branch beside it. "core": ComfyUI's own, which
@@ -391,6 +405,12 @@ def clean(raw):
         if not 0 <= gate <= 50:
             raise ValueError("motion_fix_abstain must be between 0 and 50")
         clean_settings["motion_fix_abstain"] = float(gate)
+    if "screen_tracker" in raw and raw["screen_tracker"] is not None:
+        clean_settings["screen_tracker"] = screen_spec.clean_style(raw["screen_tracker"])
+    if "screen_debug" in raw and raw["screen_debug"] is not None:
+        if not isinstance(raw["screen_debug"], bool):
+            raise ValueError("screen_debug must be true or false")
+        clean_settings["screen_debug"] = raw["screen_debug"]
     if "neural_dll" in raw and raw["neural_dll"] is not None:
         dll = raw["neural_dll"]
         if not isinstance(dll, str):
@@ -919,6 +939,16 @@ def lora_loader():
 def motion_fix_abstain():
     """The peak motion under which the motion fix leaves a pass alone."""
     return float(load()["motion_fix_abstain"])
+
+
+def screen_tracker():
+    """What a screen's tracker looks like on this machine: `{"pattern", "colour"}`."""
+    return dict(load()["screen_tracker"])
+
+
+def screen_debug():
+    """Whether a render with screens also keeps its raw render and debug view."""
+    return bool(load()["screen_debug"])
 
 
 def neural_dll():
